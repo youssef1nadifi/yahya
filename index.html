@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>yahya massar</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts (Cairo) -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- Mock Data (بيانات افتراضية) ---
+        const initialStudents = [
+            { id: 1, name: "أحمد بن علي", service: "الرياضيات", points: 85, status: "ممتاز" },
+            { id: 2, name: "سارة المنصوري", service: "الفيزياء", points: 92, status: "متفوق" },
+            { id: 3, name: "يوسف العمري", service: "علوم الحياة", points: 70, status: "جيد" },
+            { id: 4, name: "فاطمة الزهراء", service: "اللغة العربية", points: 65, status: "مقبول" },
+        ];
+
+        // --- App Component ---
+        function App() {
+            // State Management
+            const [students, setStudents] = useState(() => {
+                const saved = localStorage.getItem('masar_data');
+                return saved ? JSON.parse(saved) : initialStudents;
+            });
+            const [isAdmin, setIsAdmin] = useState(false);
+            const [showLogin, setShowLogin] = useState(false);
+            const [passwordInput, setPasswordInput] = useState("");
+            const [errorMsg, setErrorMsg] = useState("");
+            const [newStudent, setNewStudent] = useState({ name: "", service: "", points: 0, status: "جيد" });
+
+            // Persist Data
+            useEffect(() => {
+                localStorage.setItem('masar_data', JSON.stringify(students));
+            }, [students]);
+
+            // Icons init
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            }, [isAdmin, showLogin, students]);
+
+            // --- Handlers ---
+
+            const handleLogin = (e) => {
+                e.preventDefault();
+                if (passwordInput === "yahya2026") {
+                    setIsAdmin(true);
+                    setShowLogin(false);
+                    setPasswordInput("");
+                    setErrorMsg("");
+                } else {
+                    setErrorMsg("كلمة المرور غير صحيحة!");
+                }
+            };
+
+            const handleLogout = () => {
+                setIsAdmin(false);
+            };
+
+            const handleAddStudent = (e) => {
+                e.preventDefault();
+                if (!newStudent.name || !newStudent.service) return;
+                
+                const student = {
+                    ...newStudent,
+                    id: Date.now(),
+                    points: Number(newStudent.points)
+                };
+                
+                setStudents([...students, student]);
+                setNewStudent({ name: "", service: "", points: 0, status: "جيد" });
+            };
+
+            const handleDelete = (id) => {
+                if(confirm("هل أنت متأكد من حذف هذا السجل؟")) {
+                    setStudents(students.filter(s => s.id !== id));
+                }
+            };
+
+            const changePoints = (id, amount) => {
+                setStudents(students.map(s => {
+                    if (s.id === id) {
+                        const newPoints = s.points + amount;
+                        return { ...s, points: newPoints };
+                    }
+                    return s;
+                }));
+            };
+
+            // --- UI Components ---
+
+            return (
+                <div className="min-h-screen flex flex-col">
+                    {/* Header */}
+                    <header className="bg-gradient-to-r from-teal-700 to-teal-600 text-white shadow-lg">
+                        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-white/20 p-2 rounded-lg">
+                                    <i data-lucide="graduation-cap" className="w-8 h-8"></i>
+                                </div>
+                                <div>
+                                    <h1 className="text-2xl font-bold">massar yahya</h1>
+                                    <p className="text-xs text-teal-100 opacity-80">نظام إدارة النقاط والتقييم</p>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                {isAdmin ? (
+                                    <div className="flex items-center gap-4">
+                                        <span className="hidden md:inline bg-teal-800 px-3 py-1 rounded text-sm">مرحباً، الأستاذ يحيى</span>
+                                        <button 
+                                            onClick={handleLogout}
+                                            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2"
+                                        >
+                                            <i data-lucide="log-out" className="w-4 h-4"></i>
+                                            خروج
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button 
+                                        onClick={() => setShowLogin(true)}
+                                        className="bg-white text-teal-700 hover:bg-teal-50 px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm flex items-center gap-2"
+                                    >
+                                        <i data-lucide="lock" className="w-4 h-4"></i>
+                                        الدخول كأستاذ
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Main Content */}
+                    <main className="flex-grow container mx-auto px-4 py-8">
+                        
+                        {/* Stats Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            <div className="bg-white p-6 rounded-xl shadow-sm border-r-4 border-teal-500 flex items-center justify-between">
+                                <div>
+                                    <p className="text-gray-500 text-sm">عدد الطلاب</p>
+                                    <p className="text-2xl font-bold text-gray-800">{students.length}</p>
+                                </div>
+                                <div className="bg-teal-50 p-3 rounded-full text-teal-600">
+                                    <i data-lucide="users" className="w-6 h-6"></i>
+                                </div>
+                            </div>
+                            <div className="bg-white p-6 rounded-xl shadow-sm border-r-4 border-blue-500 flex items-center justify-between">
+                                <div>
+                                    <p className="text-gray-500 text-sm">متوسط النقاط</p>
+                                    <p className="text-2xl font-bold text-gray-800">
+                                        {students.length > 0 ? (students.reduce((acc, curr) => acc + curr.points, 0) / students.length).toFixed(1) : 0}
+                                    </p>
+                                </div>
+                                <div className="bg-blue-50 p-3 rounded-full text-blue-600">
+                                    <i data-lucide="activity" className="w-6 h-6"></i>
+                                </div>
+                            </div>
+                            <div className="bg-white p-6 rounded-xl shadow-sm border-r-4 border-orange-500 flex items-center justify-between">
+                                <div>
+                                    <p className="text-gray-500 text-sm">الحالة العامة</p>
+                                    <p className="text-2xl font-bold text-gray-800">نشط</p>
+                                </div>
+                                <div className="bg-orange-50 p-3 rounded-full text-orange-600">
+                                    <i data-lucide="check-circle" className="w-6 h-6"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Admin Controls - Add Student */}
+                        {isAdmin && (
+                            <div className="bg-white rounded-xl shadow-lg p-6 mb-8 border border-gray-100">
+                                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                    <i data-lucide="plus-circle" className="w-5 h-5 text-teal-600"></i>
+                                    إضافة بيانات جديدة
+                                </h3>
+                                <form onSubmit={handleAddStudent} className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                                    <input 
+                                        type="text" 
+                                        placeholder="اسم الطالب" 
+                                        className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                        value={newStudent.name}
+                                        onChange={(e) => setNewStudent({...newStudent, name: e.target.value})}
+                                        required
+                                    />
+                                    <input 
+                                        type="text" 
+                                        placeholder="المادة / الخدمة" 
+                                        className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                        value={newStudent.service}
+                                        onChange={(e) => setNewStudent({...newStudent, service: e.target.value})}
+                                        required
+                                    />
+                                    <input 
+                                        type="number" 
+                                        placeholder="النقاط" 
+                                        className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                        value={newStudent.points}
+                                        onChange={(e) => setNewStudent({...newStudent, points: e.target.value})}
+                                    />
+                                    <select 
+                                        className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+                                        value={newStudent.status}
+                                        onChange={(e) => setNewStudent({...newStudent, status: e.target.value})}
+                                    >
+                                        <option value="ممتاز">ممتاز</option>
+                                        <option value="متفوق">متفوق</option>
+                                        <option value="جيد">جيد</option>
+                                        <option value="مقبول">مقبول</option>
+                                    </select>
+                                    <button type="submit" className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg transition shadow-md">
+                                        إضافة
+                                    </button>
+                                </form>
+                            </div>
+                        )}
+
+                        {/* Data Table */}
+                        <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+                            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                                <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                                    <i data-lucide="list" className="w-5 h-5"></i>
+                                    قائمة الطلاب والخدمات
+                                </h3>
+                                <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">آخر تحديث: الآن</span>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-right">
+                                    <thead className="bg-gray-100 text-gray-600 font-semibold text-sm">
+                                        <tr>
+                                            <th className="p-4">#</th>
+                                            <th className="p-4">الاسم الكامل</th>
+                                            <th className="p-4">الخدمة / المادة</th>
+                                            <th className="p-4 text-center">النقاط</th>
+                                            <th className="p-4">الحالة</th>
+                                            {isAdmin && <th className="p-4 text-center">الإجراءات</th>}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {students.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="6" className="text-center p-8 text-gray-400">لا توجد بيانات حالياً</td>
+                                            </tr>
+                                        ) : (
+                                            students.map((student, index) => (
+                                                <tr key={student.id} className="hover:bg-teal-50/30 transition group">
+                                                    <td className="p-4 text-gray-500 font-mono text-sm">{index + 1}</td>
+                                                    <td className="p-4 font-bold text-gray-800">{student.name}</td>
+                                                    <td className="p-4 text-gray-600">
+                                                        <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">
+                                                            {student.service}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <div className="flex items-center justify-center gap-3">
+                                                            {isAdmin && (
+                                                                <button 
+                                                                    onClick={() => changePoints(student.id, -1)}
+                                                                    className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center hover:bg-red-200 transition"
+                                                                >
+                                                                    -
+                                                                </button>
+                                                            )}
+                                                            <span className={`font-bold text-lg ${student.points >= 90 ? 'text-green-600' : student.points >= 50 ? 'text-teal-600' : 'text-red-500'}`}>
+                                                                {student.points}
+                                                            </span>
+                                                            {isAdmin && (
+                                                                <button 
+                                                                    onClick={() => changePoints(student.id, 1)}
+                                                                    className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center hover:bg-green-200 transition"
+                                                                >
+                                                                    +
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className={`px-3 py-1 rounded-md text-sm ${
+                                                            student.status === 'ممتاز' || student.status === 'متفوق' ? 'bg-green-100 text-green-700' :
+                                                            student.status === 'جيد' ? 'bg-yellow-100 text-yellow-700' :
+                                                            'bg-gray-100 text-gray-600'
+                                                        }`}>
+                                                            {student.status}
+                                                        </span>
+                                                    </td>
+                                                    {isAdmin && (
+                                                        <td className="p-4 text-center">
+                                                            <button 
+                                                                onClick={() => handleDelete(student.id)}
+                                                                className="text-red-400 hover:text-red-600 transition p-2 hover:bg-red-50 rounded-lg"
+                                                                title="حذف"
+                                                            >
+                                                                <i data-lucide="trash-2" className="w-5 h-5"></i>
+                                                            </button>
+                                                        </td>
+                                                    )}
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </main>
+
+                    {/* Footer */}
+                    <footer className="bg-gray-800 text-gray-300 py-6 text-center text-sm">
+                        <p>&copy; 2026 جميع الحقوق محفوظة -</p>
+                        <p className="mt-1 text-gray-500">تم التطوير لأغراض تعليمية</p>
+                    </footer>
+
+                    {/* Login Modal */}
+                    {showLogin && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
+                                <div className="bg-teal-600 p-6 text-center">
+                                    <div className="mx-auto bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mb-4 text-white">
+                                        <i data-lucide="lock" className="w-8 h-8"></i>
+                                    </div>
+                                    <h2 className="text-xl font-bold text-white">دخول الإدارة</h2>
+                                    <p className="text-teal-100 text-sm mt-1">يرجى إدخال كلمة المرور للمتابعة</p>
+                                </div>
+                                <div className="p-8">
+                                    <form onSubmit={handleLogin}>
+                                        <div className="mb-6">
+                                            <label className="block text-gray-700 text-sm font-bold mb-2">كلمة المرور</label>
+                                            <input 
+                                                type="password" 
+                                                className="w-full border-2 border-gray-200 rounded-lg p-3 focus:outline-none focus:border-teal-500 transition"
+                                                placeholder="••••••••"
+                                                value={passwordInput}
+                                                onChange={(e) => setPasswordInput(e.target.value)}
+                                                autoFocus
+                                            />
+                                            {errorMsg && <p className="text-red-500 text-xs mt-2 font-bold">{errorMsg}</p>}
+                                        </div>
+                                        <div className="flex gap-3">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => { setShowLogin(false); setErrorMsg(""); }}
+                                                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-lg font-bold transition"
+                                            >
+                                                إلغاء
+                                            </button>
+                                            <button 
+                                                type="submit" 
+                                                className="flex-1 bg-teal-600 hover:bg-teal-700 text-white py-3 rounded-lg font-bold transition shadow-lg shadow-teal-500/30"
+                                            >
+                                                دخول
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
