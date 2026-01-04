@@ -3,406 +3,579 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>yahya massar</title>
-    
-    <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    
-    <!-- Babel for JSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
+    <title>نظام الكشافة المتكامل</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Google Fonts (Cairo) -->
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
-    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-
     <style>
-        body {
-            font-family: 'Cairo', sans-serif;
-            background-color: #f3f4f6;
+        body { font-family: 'Tajawal', sans-serif; }
+        .animate-fadeIn { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-bounce-slow { animation: bounce 3s infinite; }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(-5%); }
+            50% { transform: translateY(5%); }
         }
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #10b981; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #047857; }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #10b981;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
         }
-        /* Custom scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
-<body>
-    <div id="root"></div>
+<body class="bg-gray-100 min-h-screen">
 
-    <script type="text/babel">
-        const { useState, useEffect } = React;
+    <!-- حاوية التطبيق الرئيسية -->
+    <div id="app">
+        <div class="h-screen flex flex-col items-center justify-center gap-4">
+            <div class="loader"></div>
+            <p class="text-gray-600 font-bold">جاري الاتصال بقاعدة البيانات...</p>
+        </div>
+    </div>
 
-        // --- Mock Data (بيانات افتراضية) ---
-        const initialStudents = [
-            { id: 1, name: "أحمد بن علي", service: "الرياضيات", points: 85, status: "ممتاز" },
-            { id: 2, name: "سارة المنصوري", service: "الفيزياء", points: 92, status: "متفوق" },
-            { id: 3, name: "يوسف العمري", service: "علوم الحياة", points: 70, status: "جيد" },
-            { id: 4, name: "فاطمة الزهراء", service: "اللغة العربية", points: 65, status: "مقبول" },
-        ];
+    <!-- Firebase Configuration & Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        // Fixed import: added signInWithCustomToken
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- App Component ---
-        function App() {
-            // State Management
-            const [students, setStudents] = useState(() => {
-                const saved = localStorage.getItem('masar_data');
-                return saved ? JSON.parse(saved) : initialStudents;
-            });
-            const [isAdmin, setIsAdmin] = useState(false);
-            const [showLogin, setShowLogin] = useState(false);
-            const [passwordInput, setPasswordInput] = useState("");
-            const [errorMsg, setErrorMsg] = useState("");
-            const [newStudent, setNewStudent] = useState({ name: "", service: "", points: 0, status: "جيد" });
+        // --- إعدادات Firebase ---
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
+        let currentUser = null;
 
-            // Persist Data
-            useEffect(() => {
-                localStorage.setItem('masar_data', JSON.stringify(students));
-            }, [students]);
+        // --- الثوابت ---
+        const PASSWORDS = {
+            admin: "yahya2026",
+            cubs: "yahya123",
+            scouts: "yahya1234",
+            advanced: "yahya12345",
+            rovers: "yahya12"
+        };
 
-            // Icons init
-            useEffect(() => {
-                if (window.lucide) window.lucide.createIcons();
-            }, [isAdmin, showLogin, students]);
+        const STAGES = {
+            cubs: { id: 'cubs', name: 'مرحلة الأشبال', color: 'bg-yellow-500', iconEmoji: '🐻' },
+            scouts: { id: 'scouts', name: 'مرحلة الكشافة', color: 'bg-green-600', iconEmoji: '⚜️' },
+            advanced: { id: 'advanced', name: 'مرحلة الكشاف المتقدم', color: 'bg-red-700', iconEmoji: '🦅' },
+            rovers: { id: 'rovers', name: 'مرحلة الجوالة', color: 'bg-blue-800', iconEmoji: '🚶' }
+        };
 
-            // --- Handlers ---
+        const INITIAL_DATA = {
+            cubs: { members: [], attendance: [], projects: [], program: [] },
+            scouts: { members: [], attendance: [], projects: [], program: [] },
+            advanced: { members: [], attendance: [], projects: [], program: [] },
+            rovers: { members: [], attendance: [], projects: [], program: [] }
+        };
 
-            const handleLogin = (e) => {
-                e.preventDefault();
-                if (passwordInput === "yahya2026") {
-                    setIsAdmin(true);
-                    setShowLogin(false);
-                    setPasswordInput("");
-                    setErrorMsg("");
+        // --- الحالة (State) ---
+        let state = {
+            view: 'home',
+            userRole: 'guest',
+            selectedStage: null,
+            db: INITIAL_DATA,
+            passwordInput: '',
+            errorMsg: '',
+            activeTab: 'members',
+            loginContext: null,
+            isLoading: true
+        };
+
+        // --- إدارة قاعدة البيانات (Firestore) ---
+        
+        // 1. المصادقة والاتصال
+        async function initApp() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
-                    setErrorMsg("كلمة المرور غير صحيحة!");
+                    await signInAnonymously(auth);
                 }
-            };
-
-            const handleLogout = () => {
-                setIsAdmin(false);
-            };
-
-            const handleAddStudent = (e) => {
-                e.preventDefault();
-                if (!newStudent.name || !newStudent.service) return;
-                
-                const student = {
-                    ...newStudent,
-                    id: Date.now(),
-                    points: Number(newStudent.points)
-                };
-                
-                setStudents([...students, student]);
-                setNewStudent({ name: "", service: "", points: 0, status: "جيد" });
-            };
-
-            const handleDelete = (id) => {
-                if(confirm("هل أنت متأكد من حذف هذا السجل؟")) {
-                    setStudents(students.filter(s => s.id !== id));
-                }
-            };
-
-            const changePoints = (id, amount) => {
-                setStudents(students.map(s => {
-                    if (s.id === id) {
-                        const newPoints = s.points + amount;
-                        return { ...s, points: newPoints };
-                    }
-                    return s;
-                }));
-            };
-
-            // --- UI Components ---
-
-            return (
-                <div className="min-h-screen flex flex-col">
-                    {/* Header */}
-                    <header className="bg-gradient-to-r from-teal-700 to-teal-600 text-white shadow-lg">
-                        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <div className="bg-white/20 p-2 rounded-lg">
-                                    <i data-lucide="graduation-cap" className="w-8 h-8"></i>
-                                </div>
-                                <div>
-                                    <h1 className="text-2xl font-bold">massar yahya</h1>
-                                    <p className="text-xs text-teal-100 opacity-80">نظام إدارة النقاط والتقييم</p>
-                                </div>
-                            </div>
-                            
-                            <div>
-                                {isAdmin ? (
-                                    <div className="flex items-center gap-4">
-                                        <span className="hidden md:inline bg-teal-800 px-3 py-1 rounded text-sm">مرحباً، الأستاذ يحيى</span>
-                                        <button 
-                                            onClick={handleLogout}
-                                            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2"
-                                        >
-                                            <i data-lucide="log-out" className="w-4 h-4"></i>
-                                            خروج
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <button 
-                                        onClick={() => setShowLogin(true)}
-                                        className="bg-white text-teal-700 hover:bg-teal-50 px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm flex items-center gap-2"
-                                    >
-                                        <i data-lucide="lock" className="w-4 h-4"></i>
-                                        الدخول كأستاذ
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    </header>
-
-                    {/* Main Content */}
-                    <main className="flex-grow container mx-auto px-4 py-8">
-                        
-                        {/* Stats Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                            <div className="bg-white p-6 rounded-xl shadow-sm border-r-4 border-teal-500 flex items-center justify-between">
-                                <div>
-                                    <p className="text-gray-500 text-sm">عدد الطلاب</p>
-                                    <p className="text-2xl font-bold text-gray-800">{students.length}</p>
-                                </div>
-                                <div className="bg-teal-50 p-3 rounded-full text-teal-600">
-                                    <i data-lucide="users" className="w-6 h-6"></i>
-                                </div>
-                            </div>
-                            <div className="bg-white p-6 rounded-xl shadow-sm border-r-4 border-blue-500 flex items-center justify-between">
-                                <div>
-                                    <p className="text-gray-500 text-sm">متوسط النقاط</p>
-                                    <p className="text-2xl font-bold text-gray-800">
-                                        {students.length > 0 ? (students.reduce((acc, curr) => acc + curr.points, 0) / students.length).toFixed(1) : 0}
-                                    </p>
-                                </div>
-                                <div className="bg-blue-50 p-3 rounded-full text-blue-600">
-                                    <i data-lucide="activity" className="w-6 h-6"></i>
-                                </div>
-                            </div>
-                            <div className="bg-white p-6 rounded-xl shadow-sm border-r-4 border-orange-500 flex items-center justify-between">
-                                <div>
-                                    <p className="text-gray-500 text-sm">الحالة العامة</p>
-                                    <p className="text-2xl font-bold text-gray-800">نشط</p>
-                                </div>
-                                <div className="bg-orange-50 p-3 rounded-full text-orange-600">
-                                    <i data-lucide="check-circle" className="w-6 h-6"></i>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Admin Controls - Add Student */}
-                        {isAdmin && (
-                            <div className="bg-white rounded-xl shadow-lg p-6 mb-8 border border-gray-100">
-                                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                    <i data-lucide="plus-circle" className="w-5 h-5 text-teal-600"></i>
-                                    إضافة بيانات جديدة
-                                </h3>
-                                <form onSubmit={handleAddStudent} className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                                    <input 
-                                        type="text" 
-                                        placeholder="اسم الطالب" 
-                                        className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                        value={newStudent.name}
-                                        onChange={(e) => setNewStudent({...newStudent, name: e.target.value})}
-                                        required
-                                    />
-                                    <input 
-                                        type="text" 
-                                        placeholder="المادة / الخدمة" 
-                                        className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                        value={newStudent.service}
-                                        onChange={(e) => setNewStudent({...newStudent, service: e.target.value})}
-                                        required
-                                    />
-                                    <input 
-                                        type="number" 
-                                        placeholder="النقاط" 
-                                        className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                        value={newStudent.points}
-                                        onChange={(e) => setNewStudent({...newStudent, points: e.target.value})}
-                                    />
-                                    <select 
-                                        className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
-                                        value={newStudent.status}
-                                        onChange={(e) => setNewStudent({...newStudent, status: e.target.value})}
-                                    >
-                                        <option value="ممتاز">ممتاز</option>
-                                        <option value="متفوق">متفوق</option>
-                                        <option value="جيد">جيد</option>
-                                        <option value="مقبول">مقبول</option>
-                                    </select>
-                                    <button type="submit" className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg transition shadow-md">
-                                        إضافة
-                                    </button>
-                                </form>
-                            </div>
-                        )}
-
-                        {/* Data Table */}
-                        <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
-                            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                                <h3 className="font-bold text-gray-700 flex items-center gap-2">
-                                    <i data-lucide="list" className="w-5 h-5"></i>
-                                    قائمة الطلاب والخدمات
-                                </h3>
-                                <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">آخر تحديث: الآن</span>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-right">
-                                    <thead className="bg-gray-100 text-gray-600 font-semibold text-sm">
-                                        <tr>
-                                            <th className="p-4">#</th>
-                                            <th className="p-4">الاسم الكامل</th>
-                                            <th className="p-4">الخدمة / المادة</th>
-                                            <th className="p-4 text-center">النقاط</th>
-                                            <th className="p-4">الحالة</th>
-                                            {isAdmin && <th className="p-4 text-center">الإجراءات</th>}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {students.length === 0 ? (
-                                            <tr>
-                                                <td colSpan="6" className="text-center p-8 text-gray-400">لا توجد بيانات حالياً</td>
-                                            </tr>
-                                        ) : (
-                                            students.map((student, index) => (
-                                                <tr key={student.id} className="hover:bg-teal-50/30 transition group">
-                                                    <td className="p-4 text-gray-500 font-mono text-sm">{index + 1}</td>
-                                                    <td className="p-4 font-bold text-gray-800">{student.name}</td>
-                                                    <td className="p-4 text-gray-600">
-                                                        <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">
-                                                            {student.service}
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-4 text-center">
-                                                        <div className="flex items-center justify-center gap-3">
-                                                            {isAdmin && (
-                                                                <button 
-                                                                    onClick={() => changePoints(student.id, -1)}
-                                                                    className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center hover:bg-red-200 transition"
-                                                                >
-                                                                    -
-                                                                </button>
-                                                            )}
-                                                            <span className={`font-bold text-lg ${student.points >= 90 ? 'text-green-600' : student.points >= 50 ? 'text-teal-600' : 'text-red-500'}`}>
-                                                                {student.points}
-                                                            </span>
-                                                            {isAdmin && (
-                                                                <button 
-                                                                    onClick={() => changePoints(student.id, 1)}
-                                                                    className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center hover:bg-green-200 transition"
-                                                                >
-                                                                    +
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <span className={`px-3 py-1 rounded-md text-sm ${
-                                                            student.status === 'ممتاز' || student.status === 'متفوق' ? 'bg-green-100 text-green-700' :
-                                                            student.status === 'جيد' ? 'bg-yellow-100 text-yellow-700' :
-                                                            'bg-gray-100 text-gray-600'
-                                                        }`}>
-                                                            {student.status}
-                                                        </span>
-                                                    </td>
-                                                    {isAdmin && (
-                                                        <td className="p-4 text-center">
-                                                            <button 
-                                                                onClick={() => handleDelete(student.id)}
-                                                                className="text-red-400 hover:text-red-600 transition p-2 hover:bg-red-50 rounded-lg"
-                                                                title="حذف"
-                                                            >
-                                                                <i data-lucide="trash-2" className="w-5 h-5"></i>
-                                                            </button>
-                                                        </td>
-                                                    )}
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </main>
-
-                    {/* Footer */}
-                    <footer className="bg-gray-800 text-gray-300 py-6 text-center text-sm">
-                        <p>&copy; 2026 جميع الحقوق محفوظة -</p>
-                        <p className="mt-1 text-gray-500">تم التطوير لأغراض تعليمية</p>
-                    </footer>
-
-                    {/* Login Modal */}
-                    {showLogin && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
-                                <div className="bg-teal-600 p-6 text-center">
-                                    <div className="mx-auto bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mb-4 text-white">
-                                        <i data-lucide="lock" className="w-8 h-8"></i>
-                                    </div>
-                                    <h2 className="text-xl font-bold text-white">دخول الإدارة</h2>
-                                    <p className="text-teal-100 text-sm mt-1">يرجى إدخال كلمة المرور للمتابعة</p>
-                                </div>
-                                <div className="p-8">
-                                    <form onSubmit={handleLogin}>
-                                        <div className="mb-6">
-                                            <label className="block text-gray-700 text-sm font-bold mb-2">كلمة المرور</label>
-                                            <input 
-                                                type="password" 
-                                                className="w-full border-2 border-gray-200 rounded-lg p-3 focus:outline-none focus:border-teal-500 transition"
-                                                placeholder="••••••••"
-                                                value={passwordInput}
-                                                onChange={(e) => setPasswordInput(e.target.value)}
-                                                autoFocus
-                                            />
-                                            {errorMsg && <p className="text-red-500 text-xs mt-2 font-bold">{errorMsg}</p>}
-                                        </div>
-                                        <div className="flex gap-3">
-                                            <button 
-                                                type="button" 
-                                                onClick={() => { setShowLogin(false); setErrorMsg(""); }}
-                                                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-lg font-bold transition"
-                                            >
-                                                إلغاء
-                                            </button>
-                                            <button 
-                                                type="submit" 
-                                                className="flex-1 bg-teal-600 hover:bg-teal-700 text-white py-3 rounded-lg font-bold transition shadow-lg shadow-teal-500/30"
-                                            >
-                                                دخول
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            );
+            } catch (error) {
+                console.error("Auth Error:", error);
+            }
         }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        initApp();
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                setupRealtimeListener();
+            }
+        });
+
+        // 2. الاستماع للتغييرات (Real-time Listener)
+        function setupRealtimeListener() {
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'scouts_data', 'main_db');
+            
+            onSnapshot(docRef, (snapshot) => {
+                state.isLoading = false;
+                if (snapshot.exists()) {
+                    state.db = snapshot.data();
+                } else {
+                    // إنشاء قاعدة البيانات لأول مرة
+                    setDoc(docRef, INITIAL_DATA);
+                    state.db = INITIAL_DATA;
+                }
+                render();
+            }, (error) => {
+                console.error("Firestore Error:", error);
+                alert("حدث خطأ في الاتصال بقاعدة البيانات");
+            });
+        }
+
+        // 3. دوال التعديل (تحديث السحابة مباشرة)
+        window.addItem = async function(section, item) {
+            if (!currentUser) return;
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'scouts_data', 'main_db');
+            
+            // نأخذ نسخة عميقة من البيانات الحالية لتعديلها
+            const newDb = JSON.parse(JSON.stringify(state.db));
+            const stage = state.selectedStage;
+            
+            newDb[stage][section].push({ ...item, id: Date.now() });
+            
+            try {
+                await updateDoc(docRef, newDb);
+                // لا نحتاج لاستدعاء render يدوياً لأن onSnapshot سيقوم بذلك
+            } catch (e) {
+                alert("فشل الحفظ: " + e.message);
+            }
+        };
+
+        window.deleteItem = async function(section, id) {
+            if (!confirm('هل أنت متأكد من الحذف؟')) return;
+            if (!currentUser) return;
+            
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'scouts_data', 'main_db');
+            const newDb = JSON.parse(JSON.stringify(state.db));
+            const stage = state.selectedStage;
+            
+            newDb[stage][section] = newDb[stage][section].filter(i => i.id !== id);
+            
+            try {
+                await updateDoc(docRef, newDb);
+            } catch (e) {
+                alert("فشل الحذف: " + e.message);
+            }
+        };
+
+        // --- دوال الواجهة (Actions) ---
+        // جعل الدوال متاحة للنطاق العام (Global Scope) لاستخدامها في HTML
+        
+        window.setView = function(view) {
+            state.view = view;
+            state.errorMsg = '';
+            state.passwordInput = '';
+            render();
+        };
+
+        window.handleLogout = function() {
+            state.userRole = 'guest';
+            state.selectedStage = null;
+            state.passwordInput = ''; // تصفير كلمة المرور
+            setView('home');
+        };
+
+        window.handleLoginSubmit = function() {
+            const pwd = state.passwordInput;
+            
+            if (state.loginContext === 'admin') {
+                if (pwd === PASSWORDS.admin) {
+                    state.userRole = 'admin';
+                    setView('units');
+                } else {
+                    state.errorMsg = 'كلمة المرور غير صحيحة!';
+                    render();
+                }
+            } else if (state.loginContext === 'leader') {
+                if (pwd === PASSWORDS[state.selectedStage]) {
+                    state.userRole = 'leader';
+                    setView('dashboard');
+                } else {
+                    state.errorMsg = 'رمز القائد غير صحيح!';
+                    render();
+                }
+            }
+        };
+
+        window.handleStageSelect = function(stageId) {
+            state.selectedStage = stageId;
+            if (state.userRole === 'admin') {
+                setView('dashboard');
+            } else {
+                setView('unit-auth');
+            }
+        };
+
+        window.handleScoutAccess = function() {
+            state.userRole = 'scout';
+            setView('dashboard');
+        };
+
+        window.setLoginContext = function(context) {
+            state.loginContext = context;
+            setView('login');
+        };
+
+        window.updatePassword = function(val) {
+            state.passwordInput = val;
+        };
+
+        window.setActiveTab = function(tab) {
+            state.activeTab = tab;
+            render();
+        };
+
+
+        // --- مكونات واجهة المستخدم ---
+
+        function Header() {
+            const logoutBtn = state.view !== 'home' 
+                ? `<button onclick="handleLogout()" class="flex items-center gap-1 bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm transition text-white">
+                     <i data-lucide="log-out" class="w-4 h-4"></i> خروج
+                   </button>` 
+                : '';
+            
+            return `
+                <div class="w-full bg-emerald-900 text-white p-4 shadow-lg flex justify-between items-center" dir="rtl">
+                    <div class="font-bold text-xl flex items-center gap-2">
+                        <i data-lucide="tent" class="w-6 h-6"></i>
+                        نظام الكشافة المتكامل
+                    </div>
+                    ${logoutBtn}
+                </div>
+            `;
+        }
+
+        function HomeScreen() {
+            return `
+                <div class="flex flex-col items-center justify-center min-h-[85vh] p-4 animate-fadeIn">
+                    <div class="flex gap-4 md:gap-12 mb-12">
+                        <div class="flex flex-col items-center animate-bounce-slow">
+                            <div class="w-24 h-24 md:w-32 md:h-32 bg-emerald-700 rounded-full flex items-center justify-center shadow-xl border-4 border-yellow-400">
+                                <i data-lucide="tent" class="text-white w-12 h-12 md:w-16 md:h-16"></i>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-center -mt-8">
+                            <div class="w-28 h-28 md:w-40 md:h-40 bg-white rounded-full flex items-center justify-center shadow-2xl border-4 border-emerald-600 z-10">
+                                <i data-lucide="flame" class="text-orange-500 w-16 h-16 md:w-20 md:h-20"></i>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-center animate-bounce-slow" style="animation-delay: 0.2s">
+                            <div class="w-24 h-24 md:w-32 md:h-32 bg-emerald-700 rounded-full flex items-center justify-center shadow-xl border-4 border-yellow-400">
+                                <i data-lucide="compass" class="text-white w-12 h-12 md:w-16 md:h-16"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h1 class="text-4xl md:text-6xl font-extrabold text-emerald-900 mb-2 text-center drop-shadow-sm">كشافة المستقبل</h1>
+                    <p class="text-gray-500 mb-12 text-lg">كن مستعداً .. دائماً</p>
+
+                    <div class="flex flex-col gap-4 w-full max-w-md">
+                        <button onclick="setView('units')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xl font-bold py-4 rounded-xl shadow-lg transform hover:-translate-y-1 transition duration-300 flex items-center justify-center gap-3">
+                            <i data-lucide="users"></i> قادة المراحل والوحدات
+                        </button>
+                        
+                        <button onclick="setLoginContext('admin')" class="bg-gray-800 hover:bg-gray-900 text-white text-lg font-bold py-3 rounded-xl shadow-md transform hover:-translate-y-1 transition duration-300 flex items-center justify-center gap-3">
+                            <i data-lucide="shield" class="w-5 h-5"></i> الدخول إلى الإدارة
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function LoginScreen() {
+            const title = state.loginContext === 'admin' ? "تسجيل دخول الإدارة المركزية" : `دخول قائد ${STAGES[state.selectedStage]?.name}`;
+            
+            return `
+                <div class="flex flex-col items-center justify-center min-h-[60vh] p-4 animate-fadeIn" dir="rtl">
+                    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border-t-4 border-emerald-600">
+                        <div class="flex justify-center mb-6 text-emerald-700">
+                            <i data-lucide="lock" class="w-12 h-12"></i>
+                        </div>
+                        <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">${title}</h2>
+                        
+                        <input
+                            type="password"
+                            id="passwordInput"
+                            dir="ltr"
+                            value="${state.passwordInput}"
+                            oninput="updatePassword(this.value)"
+                            placeholder="أدخل الرمز السري..."
+                            class="w-full p-3 border border-gray-300 rounded-lg mb-4 text-center text-lg focus:ring-2 focus:ring-emerald-500 outline-none placeholder:text-right"
+                        />
+                        
+                        ${state.errorMsg ? `<p class="text-red-500 text-center mb-4 font-medium">${state.errorMsg}</p>` : ''}
+                        
+                        <button onclick="handleLoginSubmit()" class="w-full bg-emerald-700 text-white py-3 rounded-lg font-bold hover:bg-emerald-800 transition shadow-md">
+                            دخول
+                        </button>
+                        <button onclick="setView('home')" class="w-full mt-3 text-gray-500 hover:text-gray-700">
+                            إلغاء
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function UnitsScreen() {
+            const adminBadge = state.userRole === 'admin' ? '<span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-bold">وضع المدير</span>' : '';
+            
+            let cardsHtml = '';
+            for (const key in STAGES) {
+                const stage = STAGES[key];
+                cardsHtml += `
+                    <div onclick="handleStageSelect('${stage.id}')" class="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-2 group border border-gray-100">
+                        <div class="${stage.color} h-32 flex items-center justify-center">
+                            <span class="text-6xl group-hover:scale-110 transition duration-300 drop-shadow-md">${stage.iconEmoji}</span>
+                        </div>
+                        <div class="p-6 text-center">
+                            <h3 class="text-xl font-bold text-gray-800 mb-2">${stage.name}</h3>
+                            <span class="text-emerald-600 text-sm font-medium">اضغط للدخول</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="max-w-6xl mx-auto p-6 animate-fadeIn min-h-[80vh]">
+                    <div class="flex justify-between items-center mb-8">
+                        <h2 class="text-3xl font-bold text-gray-800 border-r-4 border-emerald-500 pr-4">المراحل الكشفية</h2>
+                        ${adminBadge}
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        ${cardsHtml}
+                    </div>
+                    <div class="mt-12 text-center">
+                        <button onclick="setView('home')" class="text-gray-500 hover:text-emerald-700 font-medium">العودة للرئيسية</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function UnitAuthScreen() {
+            return `
+                <div class="flex flex-col items-center justify-center min-h-[60vh] p-4 animate-fadeIn" dir="rtl">
+                    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-lg text-center">
+                        <h2 class="text-2xl font-bold mb-8 text-gray-800">
+                            دخول إلى ${STAGES[state.selectedStage]?.name}
+                        </h2>
+                        <div class="grid grid-cols-2 gap-4">
+                            <button onclick="setLoginContext('leader')" class="flex flex-col items-center justify-center p-6 bg-emerald-50 hover:bg-emerald-100 border-2 border-emerald-200 rounded-xl transition group">
+                                <i data-lucide="user-check" class="text-emerald-700 w-10 h-10 mb-2 group-hover:scale-110 transition"></i>
+                                <span class="font-bold text-emerald-900">أنا قائد</span>
+                                <span class="text-xs text-gray-500 mt-1">تعديل وإدارة</span>
+                            </button>
+
+                            <button onclick="handleScoutAccess()" class="flex flex-col items-center justify-center p-6 bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 rounded-xl transition group">
+                                <i data-lucide="user" class="text-blue-700 w-10 h-10 mb-2 group-hover:scale-110 transition"></i>
+                                <span class="font-bold text-blue-900">أنا كشاف</span>
+                                <span class="text-xs text-gray-500 mt-1">اطلاع فقط</span>
+                            </button>
+                        </div>
+                        <button onclick="setView('units')" class="mt-6 text-gray-500 flex items-center justify-center gap-1 mx-auto hover:text-gray-700">
+                            <i data-lucide="chevron-left" class="w-4 h-4"></i> عودة للمراحل
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function DashboardScreen() {
+            const stage = STAGES[state.selectedStage];
+            const data = state.db[state.selectedStage];
+            const canEdit = state.userRole === 'admin' || state.userRole === 'leader';
+            
+            const tabs = [
+                { id: 'members', label: 'المنخرطون', icon: 'users' },
+                { id: 'attendance', label: 'لائحة الحضور', icon: 'check-square' },
+                { id: 'projects', label: 'المشاريع', icon: 'compass' },
+                { id: 'program', label: 'البرنامج', icon: 'calendar' }
+            ];
+
+            let tabsHtml = tabs.map(tab => `
+                <button onclick="setActiveTab('${tab.id}')" 
+                    class="flex-1 flex items-center justify-center gap-2 py-4 px-6 font-medium transition whitespace-nowrap ${state.activeTab === tab.id ? 'text-emerald-700 border-b-4 border-emerald-600 bg-emerald-50' : 'text-gray-500 hover:text-emerald-600 hover:bg-gray-50'}">
+                    <i data-lucide="${tab.icon}" class="w-5 h-5"></i>
+                    ${tab.label}
+                </button>
+            `).join('');
+
+            let contentHtml = '';
+            
+            if (state.activeTab === 'members') {
+                const addForm = canEdit ? `
+                    <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('members', {name: fd.get('name'), fee: fd.get('fee')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
+                        <input name="name" required placeholder="اسم المنخرط" class="p-2 border rounded">
+                        <input name="fee" required type="number" placeholder="ثمن الانخراط" class="p-2 border rounded">
+                        <div class="hidden md:block"></div>
+                        <button type="submit" class="bg-emerald-600 text-white p-2 rounded hover:bg-emerald-700 flex items-center justify-center gap-1 font-bold"><i data-lucide="plus" class="w-4 h-4"></i> إضافة</button>
+                    </form>
+                ` : '';
+
+                const rows = (data.members || []).map((m, idx) => `
+                    <tr class="border-b border-gray-50 hover:bg-gray-50">
+                        <td class="p-3 font-medium">${m.name}</td>
+                        <td class="p-3 text-gray-500">#${idx + 1}</td>
+                        <td class="p-3 text-emerald-600 font-bold">${m.fee} درهم</td>
+                        ${canEdit ? `<td class="p-3 text-center"><button onclick="deleteItem('members', ${m.id})" class="text-red-500 hover:bg-red-50 p-2 rounded"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>` : ''}
+                    </tr>
+                `).join('');
+
+                contentHtml = `
+                    ${addForm}
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-right border-collapse">
+                            <thead><tr class="bg-gray-100 text-gray-700"><th class="p-3 rounded-r-lg">الاسم</th><th class="p-3">رقم الانخراط</th><th class="p-3 rounded-l-lg">ثمن الانخراط</th>${canEdit ? '<th class="p-3 w-20">إجراء</th>' : ''}</tr></thead>
+                            <tbody>${rows || '<tr><td colspan="4" class="text-center p-8 text-gray-400">لا يوجد منخرطين حالياً</td></tr>'}</tbody>
+                            <tfoot class="bg-gray-50 font-bold"><tr><td class="p-3">العدد الإجمالي: ${(data.members || []).length}</td><td colspan="3"></td></tr></tfoot>
+                        </table>
+                    </div>
+                `;
+            } else if (state.activeTab === 'attendance') {
+                const addForm = canEdit ? `
+                     <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('attendance', {name: fd.get('name'), status: fd.get('status')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
+                        <input name="name" required placeholder="الاسم الكامل" class="p-2 border rounded md:col-span-2">
+                        <select name="status" class="p-2 border rounded">
+                            <option value="حاضر">حاضر</option>
+                            <option value="غائب">غائب</option>
+                        </select>
+                        <button type="submit" class="bg-emerald-600 text-white p-2 rounded hover:bg-emerald-700 flex items-center justify-center gap-1 font-bold"><i data-lucide="plus" class="w-4 h-4"></i> إضافة</button>
+                    </form>
+                ` : '';
+
+                const rows = (data.attendance || []).map(a => `
+                     <tr class="border-b border-gray-50 hover:bg-gray-50">
+                       <td class="p-3 font-medium">${a.name}</td>
+                       <td class="p-3"><span class="px-3 py-1 rounded-full text-sm ${a.status === 'حاضر' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${a.status}</span></td>
+                       ${canEdit ? `<td class="p-3 text-center"><button onclick="deleteItem('attendance', ${a.id})" class="text-red-500 hover:bg-red-50 p-2 rounded"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>` : ''}
+                     </tr>
+                `).join('');
+
+                contentHtml = `${addForm}<div class="overflow-x-auto"><table class="w-full text-right border-collapse"><thead><tr class="bg-gray-100 text-gray-700"><th class="p-3 rounded-r-lg">الاسم الكامل</th><th class="p-3 rounded-l-lg">الحالة</th>${canEdit ? '<th class="p-3 w-20">إجراء</th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>`;
+            
+            } else if (state.activeTab === 'projects') {
+                const addForm = canEdit ? `
+                     <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('projects', {name: fd.get('name'), desc: fd.get('desc')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
+                        <input name="name" required placeholder="اسم المشروع" class="p-2 border rounded md:col-span-1">
+                        <input name="desc" required placeholder="الوصف / الحالة" class="p-2 border rounded md:col-span-2">
+                        <button type="submit" class="bg-emerald-600 text-white p-2 rounded hover:bg-emerald-700 flex items-center justify-center gap-1 font-bold"><i data-lucide="plus" class="w-4 h-4"></i> إضافة</button>
+                    </form>
+                ` : '';
+
+                const cards = (data.projects || []).map(p => `
+                    <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition bg-gradient-to-br from-white to-gray-50 relative group">
+                        <h3 class="font-bold text-lg text-emerald-800 mb-2">${p.name}</h3>
+                        <p class="text-gray-600 text-sm leading-relaxed">${p.desc}</p>
+                        ${canEdit ? `<button onclick="deleteItem('projects', ${p.id})" class="absolute top-2 left-2 text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-600 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                    </div>
+                `).join('');
+                
+                contentHtml = `${addForm}<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">${cards}</div>${(data.projects || []).length === 0 ? '<p class="text-center text-gray-400 py-8">لا توجد مشاريع مسجلة</p>' : ''}`;
+            
+            } else if (state.activeTab === 'program') {
+                 const addForm = canEdit ? `
+                     <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('program', {activity: fd.get('activity'), date: fd.get('date'), notes: fd.get('notes')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
+                        <input name="activity" required placeholder="النشاط" class="p-2 border rounded">
+                        <input name="date" required type="date" class="p-2 border rounded">
+                        <input name="notes" placeholder="ملاحظات" class="p-2 border rounded">
+                        <button type="submit" class="bg-emerald-600 text-white p-2 rounded hover:bg-emerald-700 flex items-center justify-center gap-1 font-bold"><i data-lucide="plus" class="w-4 h-4"></i> إضافة</button>
+                    </form>
+                ` : '';
+                
+                const items = (data.program || []).map(prog => `
+                    <div class="flex flex-col md:flex-row md:items-center bg-white border border-gray-100 p-4 rounded-lg shadow-sm hover:shadow-md transition">
+                        <div class="flex items-center gap-3 md:w-1/4 mb-2 md:mb-0">
+                            <div class="bg-emerald-100 text-emerald-700 p-2 rounded-lg"><i data-lucide="calendar" class="w-5 h-5"></i></div>
+                            <span class="font-bold text-gray-700">${prog.date}</span>
+                        </div>
+                        <div class="md:w-2/4 mb-2 md:mb-0"><h4 class="font-bold text-lg text-gray-800">${prog.activity}</h4></div>
+                        <div class="md:w-1/4 text-sm text-gray-500 flex justify-between items-center">
+                            <span>${prog.notes}</span>
+                            ${canEdit ? `<button onclick="deleteItem('program', ${prog.id})" class="text-red-400 hover:text-red-600 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+
+                contentHtml = `${addForm}<div class="space-y-3">${items}</div>${(data.program || []).length === 0 ? '<p class="text-center text-gray-400 py-8">البرنامج فارغ حالياً</p>' : ''}`;
+            }
+
+            return `
+                <div class="max-w-6xl mx-auto p-4 animate-fadeIn" dir="rtl">
+                    <div class="${stage.color} text-white p-6 rounded-t-2xl shadow-md flex justify-between items-center">
+                        <div>
+                            <h1 class="text-3xl font-bold flex items-center gap-3">
+                                <span class="text-4xl">${stage.iconEmoji}</span>
+                                ${stage.name}
+                            </h1>
+                            <p class="opacity-90 mt-1 mr-12 text-sm">
+                                ${state.userRole === 'admin' ? 'صلاحيات المدير العام' : state.userRole === 'leader' ? 'صلاحيات القائد' : 'وضع المشاهدة'}
+                            </p>
+                        </div>
+                        <button onclick="setView('units')" class="bg-white/20 hover:bg-white/30 p-2 rounded-full transition">
+                            <i data-lucide="chevron-left" class="w-6 h-6"></i>
+                        </button>
+                    </div>
+
+                    <div class="flex overflow-x-auto bg-white shadow border-b border-gray-200">
+                        ${tabsHtml}
+                    </div>
+
+                    <div class="bg-white p-6 rounded-b-2xl shadow min-h-[400px]">
+                        ${contentHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- دالة العرض (Render) ---
+        window.render = function() {
+            const app = document.getElementById('app');
+            
+            if (state.isLoading) {
+                 // تم التعامل معه في الـ HTML الأولي
+                 return;
+            }
+
+            let html = Header();
+
+            if (state.view === 'home') html += HomeScreen();
+            else if (state.view === 'login') html += LoginScreen();
+            else if (state.view === 'units') html += UnitsScreen();
+            else if (state.view === 'unit-auth') html += UnitAuthScreen();
+            else if (state.view === 'dashboard') html += DashboardScreen();
+
+            app.innerHTML = html;
+            
+            // إعادة تفعيل الأيقونات
+            if (window.lucide) lucide.createIcons();
+
+            // التركيز التلقائي
+            if (state.view === 'login') {
+                const input = document.getElementById('passwordInput');
+                if(input) {
+                    input.focus();
+                    input.value = state.passwordInput;
+                }
+            }
+        };
+
     </script>
 </body>
 </html>
