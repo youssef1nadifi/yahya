@@ -19,57 +19,29 @@
             0%, 100% { transform: translateY(-5%); }
             50% { transform: translateY(5%); }
         }
+        /* تحسين شكل شريط التمرير */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #10b981; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #047857; }
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #10b981;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
 
     <!-- حاوية التطبيق الرئيسية -->
-    <div id="app">
-        <div class="h-screen flex flex-col items-center justify-center gap-4">
-            <div class="loader"></div>
-            <p id="loading-text" class="text-gray-600 font-bold">جاري الاتصال بقاعدة البيانات...</p>
-        </div>
-    </div>
+    <div id="app"></div>
 
-    <!-- Firebase Configuration & Logic -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        // Fixed import: Ensure signInWithCustomToken is imported
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <!-- Logic Script -->
+    <script>
+        // --- البيانات الأولية ---
+        // نستخدم دالة لإنشاء نسخة جديدة في كل مرة لتجنب التداخل
+        const getInitialData = () => ({
+            cubs: { members: [], attendance: [], projects: [], program: [] },
+            scouts: { members: [], attendance: [], projects: [], program: [] },
+            advanced: { members: [], attendance: [], projects: [], program: [] },
+            rovers: { members: [], attendance: [], projects: [], program: [] }
+        });
 
-        // --- إعدادات Firebase ---
-        // استخدام try-catch للتعامل مع احتمال غياب التكوين
-        let firebaseConfig, app, auth, db, appId;
-        
-        try {
-            firebaseConfig = JSON.parse(__firebase_config);
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-            appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
-        } catch (e) {
-            console.error("Firebase Config Error:", e);
-            document.getElementById('loading-text').innerText = "خطأ في إعدادات النظام. يرجى تحديث الصفحة.";
-            document.getElementById('loading-text').classList.add('text-red-500');
-        }
-        
-        let currentUser = null;
-
-        // --- الثوابت ---
         const PASSWORDS = {
             admin: "yahya2026",
             cubs: "yahya123",
@@ -85,195 +57,173 @@
             rovers: { id: 'rovers', name: 'مرحلة الجوالة', color: 'bg-blue-800', iconEmoji: '🚶' }
         };
 
-        const INITIAL_DATA = {
-            cubs: { members: [], attendance: [], projects: [], program: [] },
-            scouts: { members: [], attendance: [], projects: [], program: [] },
-            advanced: { members: [], attendance: [], projects: [], program: [] },
-            rovers: { members: [], attendance: [], projects: [], program: [] }
-        };
-
-        // --- الحالة (State) ---
+        // --- الحالة العامة ---
         let state = {
             view: 'home',
             userRole: 'guest',
             selectedStage: null,
-            db: INITIAL_DATA,
+            db: getInitialData(),
             passwordInput: '',
             errorMsg: '',
             activeTab: 'members',
-            loginContext: null,
-            isLoading: true
+            loginContext: null
         };
 
-        // --- إدارة قاعدة البيانات (Firestore) ---
-        
-        // 1. المصادقة والاتصال (مع Fallback)
-        async function initApp() {
-            if (!auth) return; // Stop if auth failed to init
-            
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Auth Error (Custom Token):", error);
-                // محاولة الدخول المجهول كبديل في حال فشل التوكن
-                try {
-                    await signInAnonymously(auth);
-                } catch (anonError) {
-                    console.error("Auth Critical Error:", anonError);
-                    document.getElementById('loading-text').innerText = "فشل الاتصال بالخادم. تأكد من الإنترنت.";
-                    document.getElementById('loading-text').classList.add('text-red-500');
-                }
-            }
-        }
+        // --- نظام الإشعارات (Toast) ---
+        function showToast(message, type = 'success') {
+            const existingToasts = document.querySelectorAll('.toast-msg');
+            existingToasts.forEach(t => t.remove()); // إزالة القديم لمنع التراكم
 
-        initApp();
+            const toast = document.createElement('div');
+            const bgClass = type === 'success' ? 'bg-emerald-700' : 'bg-red-600';
+            toast.className = `toast-msg fixed bottom-4 left-4 ${bgClass} text-white px-6 py-3 rounded-lg shadow-2xl transform transition-all duration-500 translate-y-20 z-50 flex items-center gap-3 font-bold border-2 border-white/20`;
+            toast.innerHTML = `<i data-lucide="${type === 'success' ? 'check-circle' : 'alert-circle'}" class="w-6 h-6"></i> <span>${message}</span>`;
+            document.body.appendChild(toast);
+            lucide.createIcons();
 
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                currentUser = user;
-                setupRealtimeListener();
-            }
-        });
-
-        // 2. الاستماع للتغييرات (Real-time Listener)
-        function setupRealtimeListener() {
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'scouts_data', 'main_db');
-            
-            onSnapshot(docRef, (snapshot) => {
-                state.isLoading = false;
-                if (snapshot.exists()) {
-                    state.db = snapshot.data();
-                } else {
-                    // إنشاء قاعدة البيانات لأول مرة
-                    setDoc(docRef, INITIAL_DATA).catch(e => console.error("Init DB Error:", e));
-                    state.db = INITIAL_DATA;
-                }
-                render();
-            }, (error) => {
-                console.error("Firestore Error:", error);
-                state.isLoading = false;
-                render(); // Render anyway with local/initial data if offline
-                alert("حدث خطأ في جلب البيانات الحديثة، يتم العرض ببيانات مؤقتة.");
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-20');
             });
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
         }
 
-        // 3. دوال التعديل (تحديث السحابة مباشرة)
-        window.addItem = async function(section, item) {
-            if (!currentUser) return;
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'scouts_data', 'main_db');
-            
-            // نأخذ نسخة عميقة من البيانات الحالية لتعديلها
-            const newDb = JSON.parse(JSON.stringify(state.db));
-            const stage = state.selectedStage;
-            
-            newDb[stage][section].push({ ...item, id: Date.now() });
-            
-            // تحديث الواجهة فوراً لسرعة الاستجابة (Optimistic UI)
-            state.db = newDb;
-            render();
-
+        // --- إدارة البيانات (LocalStorage + Backup System) ---
+        function loadData() {
             try {
-                await updateDoc(docRef, newDb);
+                const savedData = localStorage.getItem('scoutsData_v3'); // v3 لتجنب تضارب البيانات القديمة
+                if (savedData) {
+                    state.db = JSON.parse(savedData);
+                    console.log("Data loaded successfully");
+                } else {
+                    state.db = getInitialData();
+                }
             } catch (e) {
-                console.error("Save Error:", e);
-                alert("فشل الحفظ في السحابة: " + e.message);
+                console.error("Error loading data", e);
+                state.db = getInitialData();
             }
-        };
-
-        window.deleteItem = async function(section, id) {
-            if (!confirm('هل أنت متأكد من الحذف؟')) return;
-            if (!currentUser) return;
-            
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'scouts_data', 'main_db');
-            const newDb = JSON.parse(JSON.stringify(state.db));
-            const stage = state.selectedStage;
-            
-            newDb[stage][section] = newDb[stage][section].filter(i => i.id !== id);
-            
-            // تحديث الواجهة فوراً
-            state.db = newDb;
             render();
+        }
 
+        function saveData(silent = false) {
             try {
-                await updateDoc(docRef, newDb);
+                localStorage.setItem('scoutsData_v3', JSON.stringify(state.db));
+                if (!silent) showToast('تم الحفظ تلقائياً في المتصفح');
             } catch (e) {
-                console.error("Delete Error:", e);
-                alert("فشل الحذف من السحابة: " + e.message);
+                console.error("Save failed", e);
+                showToast('تنبيه: ذاكرة المتصفح ممتلئة!', 'error');
             }
-        };
+        }
 
-        // --- دوال الواجهة (Actions) ---
+        // --- ميزات النسخ الاحتياطي (تحل محل قاعدة البيانات الخارجية) ---
+        function exportDatabase() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.db));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            // اسم الملف يحتوي التاريخ والوقت لضمان الترتيب
+            const date = new Date();
+            const fileName = `نسخة_كشافة_${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}_${date.getHours()}-${date.getMinutes()}.json`;
+            downloadAnchorNode.setAttribute("download", fileName);
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+            showToast('تم تحميل ملف النسخة الاحتياطية');
+        }
+
+        function triggerImport() {
+            document.getElementById('import-input').click();
+        }
+
+        function importDatabase(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const json = JSON.parse(e.target.result);
+                    // تحقق بسيط من بنية الملف
+                    if (json.cubs && json.scouts) {
+                        if(confirm('سيتم استبدال البيانات الحالية بالبيانات الموجودة في الملف. هل أنت متأكد؟')) {
+                            state.db = json;
+                            saveData(true); // حفظ صامت
+                            alert("تم استرجاع قاعدة البيانات بنجاح!");
+                            render();
+                            showToast('تمت استعادة البيانات بنجاح');
+                        }
+                    } else {
+                        alert("هذا الملف لا يحتوي على بيانات كشفية صالحة.");
+                    }
+                } catch(err) {
+                    alert("ملف تالف أو غير صالح.");
+                }
+            };
+            reader.readAsText(file);
+            input.value = ''; // تصفير الحقل للسماح بإعادة الرفع
+        }
+
+        // --- دوال التعامل مع البيانات (CRUD) ---
         
-        window.setView = function(view) {
-            state.view = view;
-            state.errorMsg = '';
-            state.passwordInput = '';
+        function addItem(section, item) {
+            // إضافة المعرف والوقت
+            const newItem = { ...item, id: Date.now(), createdAt: new Date().toLocaleDateString('ar-MA') };
+            state.db[state.selectedStage][section].push(newItem);
+            saveData(true); 
             render();
-        };
+            showToast('تمت الإضافة والحفظ');
+        }
 
-        window.handleLogout = function() {
+        function deleteItem(section, id) {
+            if (confirm('هل أنت متأكد من الحذف؟')) {
+                state.db[state.selectedStage][section] = state.db[state.selectedStage][section].filter(i => i.id !== id);
+                saveData(true);
+                render();
+                showToast('تم الحذف بنجاح', 'error');
+            }
+        }
+
+        // --- دوال الواجهة (UI Actions) ---
+
+        function setView(v) { state.view = v; state.errorMsg = ''; state.passwordInput = ''; render(); }
+        function setLoginContext(c) { state.loginContext = c; setView('login'); }
+        function handleStageSelect(id) { 
+            state.selectedStage = id; 
+            state.userRole === 'admin' ? setView('dashboard') : setView('unit-auth'); 
+        }
+        function handleScoutAccess() { state.userRole = 'scout'; setView('dashboard'); }
+        function updatePassword(v) { state.passwordInput = v; }
+        function setActiveTab(t) { state.activeTab = t; render(); }
+        
+        function handleLogout() {
             state.userRole = 'guest';
             state.selectedStage = null;
-            state.passwordInput = '';
             setView('home');
-        };
+        }
 
-        window.handleLoginSubmit = function() {
+        function handleLoginSubmit() {
             const pwd = state.passwordInput;
+            let success = false;
             
-            if (state.loginContext === 'admin') {
-                if (pwd === PASSWORDS.admin) {
-                    state.userRole = 'admin';
-                    setView('units');
-                } else {
-                    state.errorMsg = 'كلمة المرور غير صحيحة!';
-                    render();
-                }
-            } else if (state.loginContext === 'leader') {
-                if (pwd === PASSWORDS[state.selectedStage]) {
-                    state.userRole = 'leader';
-                    setView('dashboard');
-                } else {
-                    state.errorMsg = 'رمز القائد غير صحيح!';
-                    render();
-                }
-            }
-        };
-
-        window.handleStageSelect = function(stageId) {
-            state.selectedStage = stageId;
-            if (state.userRole === 'admin') {
+            if (state.loginContext === 'admin' && pwd === PASSWORDS.admin) {
+                state.userRole = 'admin';
+                setView('units');
+                success = true;
+            } else if (state.loginContext === 'leader' && pwd === PASSWORDS[state.selectedStage]) {
+                state.userRole = 'leader';
                 setView('dashboard');
-            } else {
-                setView('unit-auth');
+                success = true;
             }
-        };
 
-        window.handleScoutAccess = function() {
-            state.userRole = 'scout';
-            setView('dashboard');
-        };
+            if (!success) {
+                state.errorMsg = 'كلمة المرور غير صحيحة!';
+                render();
+            }
+        }
 
-        window.setLoginContext = function(context) {
-            state.loginContext = context;
-            setView('login');
-        };
-
-        window.updatePassword = function(val) {
-            state.passwordInput = val;
-        };
-
-        window.setActiveTab = function(tab) {
-            state.activeTab = tab;
-            render();
-        };
-
-
-        // --- مكونات واجهة المستخدم ---
+        // --- مكونات الواجهة (Components) ---
 
         function Header() {
             const logoutBtn = state.view !== 'home' 
@@ -332,33 +282,15 @@
 
         function LoginScreen() {
             const title = state.loginContext === 'admin' ? "تسجيل دخول الإدارة المركزية" : `دخول قائد ${STAGES[state.selectedStage]?.name}`;
-            
             return `
                 <div class="flex flex-col items-center justify-center min-h-[60vh] p-4 animate-fadeIn" dir="rtl">
                     <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border-t-4 border-emerald-600">
-                        <div class="flex justify-center mb-6 text-emerald-700">
-                            <i data-lucide="lock" class="w-12 h-12"></i>
-                        </div>
+                        <div class="flex justify-center mb-6 text-emerald-700"><i data-lucide="lock" class="w-12 h-12"></i></div>
                         <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">${title}</h2>
-                        
-                        <input
-                            type="password"
-                            id="passwordInput"
-                            dir="ltr"
-                            value="${state.passwordInput}"
-                            oninput="updatePassword(this.value)"
-                            placeholder="أدخل الرمز السري..."
-                            class="w-full p-3 border border-gray-300 rounded-lg mb-4 text-center text-lg focus:ring-2 focus:ring-emerald-500 outline-none placeholder:text-right"
-                        />
-                        
+                        <input type="password" id="passwordInput" dir="ltr" value="${state.passwordInput}" oninput="updatePassword(this.value)" placeholder="أدخل الرمز السري..." class="w-full p-3 border border-gray-300 rounded-lg mb-4 text-center text-lg focus:ring-2 focus:ring-emerald-500 outline-none placeholder:text-right" />
                         ${state.errorMsg ? `<p class="text-red-500 text-center mb-4 font-medium">${state.errorMsg}</p>` : ''}
-                        
-                        <button onclick="handleLoginSubmit()" class="w-full bg-emerald-700 text-white py-3 rounded-lg font-bold hover:bg-emerald-800 transition shadow-md">
-                            دخول
-                        </button>
-                        <button onclick="setView('home')" class="w-full mt-3 text-gray-500 hover:text-gray-700">
-                            إلغاء
-                        </button>
+                        <button onclick="handleLoginSubmit()" class="w-full bg-emerald-700 text-white py-3 rounded-lg font-bold hover:bg-emerald-800 transition shadow-md">دخول</button>
+                        <button onclick="setView('home')" class="w-full mt-3 text-gray-500 hover:text-gray-700">إلغاء</button>
                     </div>
                 </div>
             `;
@@ -367,6 +299,27 @@
         function UnitsScreen() {
             const adminBadge = state.userRole === 'admin' ? '<span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-bold">وضع المدير</span>' : '';
             
+            // أزرار النسخ الاحتياطي في شاشة الوحدات (للإدارة)
+            const backupControls = state.userRole === 'admin' ? `
+                <div class="mb-8 p-6 bg-blue-50 border-2 border-blue-200 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-6 shadow-sm">
+                    <div class="flex items-start gap-3 text-blue-900">
+                        <div class="bg-blue-100 p-2 rounded-lg"><i data-lucide="database" class="w-6 h-6 text-blue-600"></i></div>
+                        <div>
+                            <span class="font-bold text-lg block">منطقة الأمان (قاعدة البيانات)</span>
+                            <span class="text-sm text-blue-700 opacity-90">الإدارة فقط: حفظ واسترجاع كامل بيانات الموقع</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="exportDatabase()" class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold transition">
+                            <i data-lucide="download" class="w-4 h-4"></i> حفظ نسخة
+                        </button>
+                        <button onclick="triggerImport()" class="flex items-center gap-2 bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 px-4 py-2 rounded-lg font-bold transition">
+                            <i data-lucide="upload" class="w-4 h-4"></i> استرجاع
+                        </button>
+                    </div>
+                </div>
+            ` : '';
+
             let cardsHtml = '';
             for (const key in STAGES) {
                 const stage = STAGES[key];
@@ -382,13 +335,13 @@
                     </div>
                 `;
             }
-
             return `
                 <div class="max-w-6xl mx-auto p-6 animate-fadeIn min-h-[80vh]">
                     <div class="flex justify-between items-center mb-8">
                         <h2 class="text-3xl font-bold text-gray-800 border-r-4 border-emerald-500 pr-4">المراحل الكشفية</h2>
                         ${adminBadge}
                     </div>
+                    ${backupControls}
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         ${cardsHtml}
                     </div>
@@ -403,16 +356,13 @@
             return `
                 <div class="flex flex-col items-center justify-center min-h-[60vh] p-4 animate-fadeIn" dir="rtl">
                     <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-lg text-center">
-                        <h2 class="text-2xl font-bold mb-8 text-gray-800">
-                            دخول إلى ${STAGES[state.selectedStage]?.name}
-                        </h2>
+                        <h2 class="text-2xl font-bold mb-8 text-gray-800">دخول إلى ${STAGES[state.selectedStage]?.name}</h2>
                         <div class="grid grid-cols-2 gap-4">
                             <button onclick="setLoginContext('leader')" class="flex flex-col items-center justify-center p-6 bg-emerald-50 hover:bg-emerald-100 border-2 border-emerald-200 rounded-xl transition group">
                                 <i data-lucide="user-check" class="text-emerald-700 w-10 h-10 mb-2 group-hover:scale-110 transition"></i>
                                 <span class="font-bold text-emerald-900">أنا قائد</span>
                                 <span class="text-xs text-gray-500 mt-1">تعديل وإدارة</span>
                             </button>
-
                             <button onclick="handleScoutAccess()" class="flex flex-col items-center justify-center p-6 bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 rounded-xl transition group">
                                 <i data-lucide="user" class="text-blue-700 w-10 h-10 mb-2 group-hover:scale-110 transition"></i>
                                 <span class="font-bold text-blue-900">أنا كشاف</span>
@@ -429,9 +379,28 @@
 
         function DashboardScreen() {
             const stage = STAGES[state.selectedStage];
-            const data = state.db[state.selectedStage] || INITIAL_DATA[state.selectedStage]; // حماية من البيانات الفارغة
+            const data = state.db[state.selectedStage] || INITIAL_DATA[state.selectedStage];
             const canEdit = state.userRole === 'admin' || state.userRole === 'leader';
             
+            // --- إضافة أزرار النسخ الاحتياطي للقادة أيضاً ---
+            const backupSection = canEdit ? `
+                <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex justify-between items-center flex-wrap gap-2">
+                    <div class="text-blue-800 text-sm font-bold flex items-center gap-2">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        <span>حفظ بياناتك (أمان):</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="exportDatabase()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 transition shadow-sm">
+                            <i data-lucide="download" class="w-4 h-4"></i> تحميل نسخة
+                        </button>
+                        <button onclick="triggerImport()" class="bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 transition shadow-sm">
+                            <i data-lucide="upload" class="w-4 h-4"></i> استرجاع
+                        </button>
+                        <input type="file" id="import-input" class="hidden" accept=".json" onchange="importDatabase(this)" />
+                    </div>
+                </div>
+            ` : '';
+
             const tabs = [
                 { id: 'members', label: 'المنخرطون', icon: 'users' },
                 { id: 'attendance', label: 'لائحة الحضور', icon: 'check-square' },
@@ -449,86 +418,65 @@
 
             let contentHtml = '';
             
-            if (state.activeTab === 'members') {
-                const addForm = canEdit ? `
-                    <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('members', {name: fd.get('name'), fee: fd.get('fee')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
-                        <input name="name" required placeholder="اسم المنخرط" class="p-2 border rounded">
-                        <input name="fee" required type="number" placeholder="ثمن الانخراط" class="p-2 border rounded">
-                        <div class="hidden md:block"></div>
-                        <button type="submit" class="bg-emerald-600 text-white p-2 rounded hover:bg-emerald-700 flex items-center justify-center gap-1 font-bold"><i data-lucide="plus" class="w-4 h-4"></i> إضافة</button>
-                    </form>
-                ` : '';
+            const renderTable = (headers, rows) => `
+                <div class="overflow-x-auto">
+                    <table class="w-full text-right border-collapse">
+                        <thead><tr class="bg-gray-100 text-gray-700">${headers.map(h => `<th class="p-3">${h}</th>`).join('')}${canEdit ? '<th class="p-3 w-20">إجراء</th>' : ''}</tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>`;
 
+            if (state.activeTab === 'members') {
                 const rows = (data.members || []).map((m, idx) => `
                     <tr class="border-b border-gray-50 hover:bg-gray-50">
                         <td class="p-3 font-medium">${m.name}</td>
                         <td class="p-3 text-gray-500">#${idx + 1}</td>
                         <td class="p-3 text-emerald-600 font-bold">${m.fee} درهم</td>
                         ${canEdit ? `<td class="p-3 text-center"><button onclick="deleteItem('members', ${m.id})" class="text-red-500 hover:bg-red-50 p-2 rounded"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>` : ''}
-                    </tr>
-                `).join('');
-
-                contentHtml = `
-                    ${addForm}
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-right border-collapse">
-                            <thead><tr class="bg-gray-100 text-gray-700"><th class="p-3 rounded-r-lg">الاسم</th><th class="p-3">رقم الانخراط</th><th class="p-3 rounded-l-lg">ثمن الانخراط</th>${canEdit ? '<th class="p-3 w-20">إجراء</th>' : ''}</tr></thead>
-                            <tbody>${rows || '<tr><td colspan="4" class="text-center p-8 text-gray-400">لا يوجد منخرطين حالياً</td></tr>'}</tbody>
-                            <tfoot class="bg-gray-50 font-bold"><tr><td class="p-3">العدد الإجمالي: ${(data.members || []).length}</td><td colspan="3"></td></tr></tfoot>
-                        </table>
-                    </div>
-                `;
-            } else if (state.activeTab === 'attendance') {
-                const addForm = canEdit ? `
-                     <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('attendance', {name: fd.get('name'), status: fd.get('status')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
-                        <input name="name" required placeholder="الاسم الكامل" class="p-2 border rounded md:col-span-2">
-                        <select name="status" class="p-2 border rounded">
-                            <option value="حاضر">حاضر</option>
-                            <option value="غائب">غائب</option>
-                        </select>
+                    </tr>`).join('');
+                
+                contentHtml = canEdit ? `
+                    <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('members', {name: fd.get('name'), fee: fd.get('fee')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
+                        <input name="name" required placeholder="اسم المنخرط" class="p-2 border rounded">
+                        <input name="fee" required type="number" placeholder="ثمن الانخراط" class="p-2 border rounded">
+                        <div class="hidden md:block"></div>
                         <button type="submit" class="bg-emerald-600 text-white p-2 rounded hover:bg-emerald-700 flex items-center justify-center gap-1 font-bold"><i data-lucide="plus" class="w-4 h-4"></i> إضافة</button>
-                    </form>
-                ` : '';
-
+                    </form>` : '';
+                contentHtml += rows ? renderTable(['الاسم', 'رقم الانخراط', 'ثمن الانخراط'], rows) : '<p class="text-center p-8 text-gray-400">لا يوجد بيانات</p>';
+            
+            } else if (state.activeTab === 'attendance') {
                 const rows = (data.attendance || []).map(a => `
                      <tr class="border-b border-gray-50 hover:bg-gray-50">
                        <td class="p-3 font-medium">${a.name}</td>
                        <td class="p-3"><span class="px-3 py-1 rounded-full text-sm ${a.status === 'حاضر' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${a.status}</span></td>
                        ${canEdit ? `<td class="p-3 text-center"><button onclick="deleteItem('attendance', ${a.id})" class="text-red-500 hover:bg-red-50 p-2 rounded"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>` : ''}
-                     </tr>
-                `).join('');
-
-                contentHtml = `${addForm}<div class="overflow-x-auto"><table class="w-full text-right border-collapse"><thead><tr class="bg-gray-100 text-gray-700"><th class="p-3 rounded-r-lg">الاسم الكامل</th><th class="p-3 rounded-l-lg">الحالة</th>${canEdit ? '<th class="p-3 w-20">إجراء</th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>`;
-            
-            } else if (state.activeTab === 'projects') {
-                const addForm = canEdit ? `
-                     <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('projects', {name: fd.get('name'), desc: fd.get('desc')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
-                        <input name="name" required placeholder="اسم المشروع" class="p-2 border rounded md:col-span-1">
-                        <input name="desc" required placeholder="الوصف / الحالة" class="p-2 border rounded md:col-span-2">
+                     </tr>`).join('');
+                
+                contentHtml = canEdit ? `
+                     <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('attendance', {name: fd.get('name'), status: fd.get('status')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
+                        <input name="name" required placeholder="الاسم الكامل" class="p-2 border rounded md:col-span-2">
+                        <select name="status" class="p-2 border rounded"><option value="حاضر">حاضر</option><option value="غائب">غائب</option></select>
                         <button type="submit" class="bg-emerald-600 text-white p-2 rounded hover:bg-emerald-700 flex items-center justify-center gap-1 font-bold"><i data-lucide="plus" class="w-4 h-4"></i> إضافة</button>
-                    </form>
-                ` : '';
+                    </form>` : '';
+                contentHtml += rows ? renderTable(['الاسم الكامل', 'الحالة'], rows) : '<p class="text-center p-8 text-gray-400">لا يوجد بيانات</p>';
 
+            } else if (state.activeTab === 'projects') {
                 const cards = (data.projects || []).map(p => `
                     <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition bg-gradient-to-br from-white to-gray-50 relative group">
                         <h3 class="font-bold text-lg text-emerald-800 mb-2">${p.name}</h3>
                         <p class="text-gray-600 text-sm leading-relaxed">${p.desc}</p>
                         ${canEdit ? `<button onclick="deleteItem('projects', ${p.id})" class="absolute top-2 left-2 text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-600 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
-                    </div>
-                `).join('');
+                    </div>`).join('');
                 
-                contentHtml = `${addForm}<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">${cards}</div>${(data.projects || []).length === 0 ? '<p class="text-center text-gray-400 py-8">لا توجد مشاريع مسجلة</p>' : ''}`;
-            
-            } else if (state.activeTab === 'program') {
-                 const addForm = canEdit ? `
-                     <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('program', {activity: fd.get('activity'), date: fd.get('date'), notes: fd.get('notes')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
-                        <input name="activity" required placeholder="النشاط" class="p-2 border rounded">
-                        <input name="date" required type="date" class="p-2 border rounded">
-                        <input name="notes" placeholder="ملاحظات" class="p-2 border rounded">
+                contentHtml = canEdit ? `
+                     <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('projects', {name: fd.get('name'), desc: fd.get('desc')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
+                        <input name="name" required placeholder="اسم المشروع" class="p-2 border rounded md:col-span-1">
+                        <input name="desc" required placeholder="الوصف / الحالة" class="p-2 border rounded md:col-span-2">
                         <button type="submit" class="bg-emerald-600 text-white p-2 rounded hover:bg-emerald-700 flex items-center justify-center gap-1 font-bold"><i data-lucide="plus" class="w-4 h-4"></i> إضافة</button>
-                    </form>
-                ` : '';
-                
+                    </form>` : '';
+                contentHtml += `<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">${cards}</div>`;
+
+            } else if (state.activeTab === 'program') {
                 const items = (data.program || []).map(prog => `
                     <div class="flex flex-col md:flex-row md:items-center bg-white border border-gray-100 p-4 rounded-lg shadow-sm hover:shadow-md transition">
                         <div class="flex items-center gap-3 md:w-1/4 mb-2 md:mb-0">
@@ -540,33 +488,31 @@
                             <span>${prog.notes}</span>
                             ${canEdit ? `<button onclick="deleteItem('program', ${prog.id})" class="text-red-400 hover:text-red-600 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
                         </div>
-                    </div>
-                `).join('');
-
-                contentHtml = `${addForm}<div class="space-y-3">${items}</div>${(data.program || []).length === 0 ? '<p class="text-center text-gray-400 py-8">البرنامج فارغ حالياً</p>' : ''}`;
+                    </div>`).join('');
+                
+                contentHtml = canEdit ? `
+                     <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('program', {activity: fd.get('activity'), date: fd.get('date'), notes: fd.get('notes')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
+                        <input name="activity" required placeholder="النشاط" class="p-2 border rounded">
+                        <input name="date" required type="date" class="p-2 border rounded">
+                        <input name="notes" placeholder="ملاحظات" class="p-2 border rounded">
+                        <button type="submit" class="bg-emerald-600 text-white p-2 rounded hover:bg-emerald-700 flex items-center justify-center gap-1 font-bold"><i data-lucide="plus" class="w-4 h-4"></i> إضافة</button>
+                    </form>` : '';
+                contentHtml += `<div class="space-y-3">${items}</div>`;
             }
 
             return `
                 <div class="max-w-6xl mx-auto p-4 animate-fadeIn" dir="rtl">
                     <div class="${stage.color} text-white p-6 rounded-t-2xl shadow-md flex justify-between items-center">
                         <div>
-                            <h1 class="text-3xl font-bold flex items-center gap-3">
-                                <span class="text-4xl">${stage.iconEmoji}</span>
-                                ${stage.name}
-                            </h1>
-                            <p class="opacity-90 mt-1 mr-12 text-sm">
-                                ${state.userRole === 'admin' ? 'صلاحيات المدير العام' : state.userRole === 'leader' ? 'صلاحيات القائد' : 'وضع المشاهدة'}
-                            </p>
+                            <h1 class="text-3xl font-bold flex items-center gap-3"><span class="text-4xl">${stage.iconEmoji}</span>${stage.name}</h1>
+                            <p class="opacity-90 mt-1 mr-12 text-sm">${state.userRole === 'admin' ? 'صلاحيات المدير العام' : state.userRole === 'leader' ? 'صلاحيات القائد' : 'وضع المشاهدة'}</p>
                         </div>
-                        <button onclick="setView('units')" class="bg-white/20 hover:bg-white/30 p-2 rounded-full transition">
-                            <i data-lucide="chevron-left" class="w-6 h-6"></i>
-                        </button>
+                        <button onclick="setView('units')" class="bg-white/20 hover:bg-white/30 p-2 rounded-full transition"><i data-lucide="chevron-left" class="w-6 h-6"></i></button>
                     </div>
-
+                    ${backupSection} <!-- أزرار الحفظ تظهر الآن هنا للقادة أيضاً -->
                     <div class="flex overflow-x-auto bg-white shadow border-b border-gray-200">
                         ${tabsHtml}
                     </div>
-
                     <div class="bg-white p-6 rounded-b-2xl shadow min-h-[400px]">
                         ${contentHtml}
                     </div>
@@ -574,15 +520,9 @@
             `;
         }
 
-        // --- دالة العرض (Render) ---
-        window.render = function() {
+        // --- دالة العرض الرئيسية (Main Render) ---
+        function render() {
             const app = document.getElementById('app');
-            
-            if (state.isLoading) {
-                 // تم التعامل معه في الـ HTML الأولي
-                 return;
-            }
-
             let html = Header();
 
             if (state.view === 'home') html += HomeScreen();
@@ -592,11 +532,8 @@
             else if (state.view === 'dashboard') html += DashboardScreen();
 
             app.innerHTML = html;
-            
-            // إعادة تفعيل الأيقونات
             if (window.lucide) lucide.createIcons();
-
-            // التركيز التلقائي
+            
             if (state.view === 'login') {
                 const input = document.getElementById('passwordInput');
                 if(input) {
@@ -604,8 +541,12 @@
                     input.value = state.passwordInput;
                 }
             }
-        };
+        }
 
+        // بدء التطبيق
+        window.onload = function() {
+            loadData();
+        };
     </script>
 </body>
 </html>
