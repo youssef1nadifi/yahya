@@ -40,23 +40,33 @@
     <div id="app">
         <div class="h-screen flex flex-col items-center justify-center gap-4">
             <div class="loader"></div>
-            <p class="text-gray-600 font-bold">جاري الاتصال بقاعدة البيانات...</p>
+            <p id="loading-text" class="text-gray-600 font-bold">جاري الاتصال بقاعدة البيانات...</p>
         </div>
     </div>
 
     <!-- Firebase Configuration & Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        // Fixed import: added signInWithCustomToken
+        // Fixed import: Ensure signInWithCustomToken is imported
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- إعدادات Firebase ---
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
+        // استخدام try-catch للتعامل مع احتمال غياب التكوين
+        let firebaseConfig, app, auth, db, appId;
+        
+        try {
+            firebaseConfig = JSON.parse(__firebase_config);
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
+        } catch (e) {
+            console.error("Firebase Config Error:", e);
+            document.getElementById('loading-text').innerText = "خطأ في إعدادات النظام. يرجى تحديث الصفحة.";
+            document.getElementById('loading-text').classList.add('text-red-500');
+        }
+        
         let currentUser = null;
 
         // --- الثوابت ---
@@ -97,8 +107,10 @@
 
         // --- إدارة قاعدة البيانات (Firestore) ---
         
-        // 1. المصادقة والاتصال
+        // 1. المصادقة والاتصال (مع Fallback)
         async function initApp() {
+            if (!auth) return; // Stop if auth failed to init
+            
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
@@ -106,7 +118,15 @@
                     await signInAnonymously(auth);
                 }
             } catch (error) {
-                console.error("Auth Error:", error);
+                console.error("Auth Error (Custom Token):", error);
+                // محاولة الدخول المجهول كبديل في حال فشل التوكن
+                try {
+                    await signInAnonymously(auth);
+                } catch (anonError) {
+                    console.error("Auth Critical Error:", anonError);
+                    document.getElementById('loading-text').innerText = "فشل الاتصال بالخادم. تأكد من الإنترنت.";
+                    document.getElementById('loading-text').classList.add('text-red-500');
+                }
             }
         }
 
@@ -129,13 +149,15 @@
                     state.db = snapshot.data();
                 } else {
                     // إنشاء قاعدة البيانات لأول مرة
-                    setDoc(docRef, INITIAL_DATA);
+                    setDoc(docRef, INITIAL_DATA).catch(e => console.error("Init DB Error:", e));
                     state.db = INITIAL_DATA;
                 }
                 render();
             }, (error) => {
                 console.error("Firestore Error:", error);
-                alert("حدث خطأ في الاتصال بقاعدة البيانات");
+                state.isLoading = false;
+                render(); // Render anyway with local/initial data if offline
+                alert("حدث خطأ في جلب البيانات الحديثة، يتم العرض ببيانات مؤقتة.");
             });
         }
 
@@ -150,11 +172,15 @@
             
             newDb[stage][section].push({ ...item, id: Date.now() });
             
+            // تحديث الواجهة فوراً لسرعة الاستجابة (Optimistic UI)
+            state.db = newDb;
+            render();
+
             try {
                 await updateDoc(docRef, newDb);
-                // لا نحتاج لاستدعاء render يدوياً لأن onSnapshot سيقوم بذلك
             } catch (e) {
-                alert("فشل الحفظ: " + e.message);
+                console.error("Save Error:", e);
+                alert("فشل الحفظ في السحابة: " + e.message);
             }
         };
 
@@ -168,15 +194,19 @@
             
             newDb[stage][section] = newDb[stage][section].filter(i => i.id !== id);
             
+            // تحديث الواجهة فوراً
+            state.db = newDb;
+            render();
+
             try {
                 await updateDoc(docRef, newDb);
             } catch (e) {
-                alert("فشل الحذف: " + e.message);
+                console.error("Delete Error:", e);
+                alert("فشل الحذف من السحابة: " + e.message);
             }
         };
 
         // --- دوال الواجهة (Actions) ---
-        // جعل الدوال متاحة للنطاق العام (Global Scope) لاستخدامها في HTML
         
         window.setView = function(view) {
             state.view = view;
@@ -188,7 +218,7 @@
         window.handleLogout = function() {
             state.userRole = 'guest';
             state.selectedStage = null;
-            state.passwordInput = ''; // تصفير كلمة المرور
+            state.passwordInput = '';
             setView('home');
         };
 
@@ -399,7 +429,7 @@
 
         function DashboardScreen() {
             const stage = STAGES[state.selectedStage];
-            const data = state.db[state.selectedStage];
+            const data = state.db[state.selectedStage] || INITIAL_DATA[state.selectedStage]; // حماية من البيانات الفارغة
             const canEdit = state.userRole === 'admin' || state.userRole === 'leader';
             
             const tabs = [
