@@ -34,7 +34,6 @@
     <!-- Logic Script -->
     <script>
         // --- البيانات الأولية ---
-        // نستخدم دالة لإنشاء نسخة جديدة في كل مرة لتجنب التداخل
         const getInitialData = () => ({
             cubs: { members: [], attendance: [], projects: [], program: [] },
             scouts: { members: [], attendance: [], projects: [], program: [] },
@@ -50,11 +49,36 @@
             rovers: "yahya12"
         };
 
+        // --- تحديث مسارات الصور لتكون روابط Pinterest المباشرة ---
         const STAGES = {
-            cubs: { id: 'cubs', name: 'مرحلة الأشبال', color: 'bg-yellow-500', iconEmoji: '🐻' },
-            scouts: { id: 'scouts', name: 'مرحلة الكشافة', color: 'bg-green-600', iconEmoji: '⚜️' },
-            advanced: { id: 'advanced', name: 'مرحلة الكشاف المتقدم', color: 'bg-red-700', iconEmoji: '🦅' },
-            rovers: { id: 'rovers', name: 'مرحلة الجوالة', color: 'bg-blue-800', iconEmoji: '🚶' }
+            cubs: { 
+                id: 'cubs', 
+                name: 'مرحلة الأشبال', 
+                color: 'bg-yellow-500', 
+                iconEmoji: '🐻',
+                img: 'https://i.pinimg.com/736x/51/22/69/5122697c5906f09831188df376da0429.jpg' 
+            },
+            scouts: { 
+                id: 'scouts', 
+                name: 'مرحلة الكشافة', 
+                color: 'bg-green-600', 
+                iconEmoji: '⚜️',
+                img: 'https://i.pinimg.com/736x/ff/cd/96/ffcd96eef41c77228319b3c236ce8753.jpg'
+            },
+            advanced: { 
+                id: 'advanced', 
+                name: 'مرحلة الكشاف المتقدم', 
+                color: 'bg-red-700', 
+                iconEmoji: '🦅',
+                img: 'https://i.pinimg.com/736x/71/18/93/7118931019215e0706c98a47f52cc77c.jpg'
+            },
+            rovers: { 
+                id: 'rovers', 
+                name: 'مرحلة الجوالة', 
+                color: 'bg-blue-800', 
+                iconEmoji: '🚶',
+                img: 'https://i.pinimg.com/736x/8f/13/ec/8f13ec84be6a737ac2cd586ba0aec056.jpg'
+            }
         };
 
         // --- الحالة العامة ---
@@ -72,7 +96,7 @@
         // --- نظام الإشعارات (Toast) ---
         function showToast(message, type = 'success') {
             const existingToasts = document.querySelectorAll('.toast-msg');
-            existingToasts.forEach(t => t.remove()); // إزالة القديم لمنع التراكم
+            existingToasts.forEach(t => t.remove());
 
             const toast = document.createElement('div');
             const bgClass = type === 'success' ? 'bg-emerald-700' : 'bg-red-600';
@@ -91,13 +115,12 @@
             }, 3000);
         }
 
-        // --- إدارة البيانات (LocalStorage + Backup System) ---
+        // --- إدارة البيانات (LocalStorage) ---
         function loadData() {
             try {
-                const savedData = localStorage.getItem('scoutsData_v3'); // v3 لتجنب تضارب البيانات القديمة
+                const savedData = localStorage.getItem('scoutsData_v3');
                 if (savedData) {
                     state.db = JSON.parse(savedData);
-                    console.log("Data loaded successfully");
                 } else {
                     state.db = getInitialData();
                 }
@@ -118,12 +141,11 @@
             }
         }
 
-        // --- ميزات النسخ الاحتياطي (تحل محل قاعدة البيانات الخارجية) ---
+        // --- ميزات النسخ الاحتياطي ---
         function exportDatabase() {
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.db));
             const downloadAnchorNode = document.createElement('a');
             downloadAnchorNode.setAttribute("href", dataStr);
-            // اسم الملف يحتوي التاريخ والوقت لضمان الترتيب
             const date = new Date();
             const fileName = `نسخة_كشافة_${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}_${date.getHours()}-${date.getMinutes()}.json`;
             downloadAnchorNode.setAttribute("download", fileName);
@@ -145,11 +167,10 @@
             reader.onload = function(e) {
                 try {
                     const json = JSON.parse(e.target.result);
-                    // تحقق بسيط من بنية الملف
                     if (json.cubs && json.scouts) {
                         if(confirm('سيتم استبدال البيانات الحالية بالبيانات الموجودة في الملف. هل أنت متأكد؟')) {
                             state.db = json;
-                            saveData(true); // حفظ صامت
+                            saveData(true);
                             alert("تم استرجاع قاعدة البيانات بنجاح!");
                             render();
                             showToast('تمت استعادة البيانات بنجاح');
@@ -162,13 +183,11 @@
                 }
             };
             reader.readAsText(file);
-            input.value = ''; // تصفير الحقل للسماح بإعادة الرفع
+            input.value = '';
         }
 
         // --- دوال التعامل مع البيانات (CRUD) ---
-        
         function addItem(section, item) {
-            // إضافة المعرف والوقت
             const newItem = { ...item, id: Date.now(), createdAt: new Date().toLocaleDateString('ar-MA') };
             state.db[state.selectedStage][section].push(newItem);
             saveData(true); 
@@ -186,7 +205,6 @@
         }
 
         // --- دوال الواجهة (UI Actions) ---
-
         function setView(v) { state.view = v; state.errorMsg = ''; state.passwordInput = ''; render(); }
         function setLoginContext(c) { state.loginContext = c; setView('login'); }
         function handleStageSelect(id) { 
@@ -224,7 +242,6 @@
         }
 
         // --- مكونات الواجهة (Components) ---
-
         function Header() {
             const logoutBtn = state.view !== 'home' 
                 ? `<button onclick="handleLogout()" class="flex items-center gap-1 bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm transition text-white">
@@ -298,8 +315,6 @@
 
         function UnitsScreen() {
             const adminBadge = state.userRole === 'admin' ? '<span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-bold">وضع المدير</span>' : '';
-            
-            // أزرار النسخ الاحتياطي في شاشة الوحدات (للإدارة)
             const backupControls = state.userRole === 'admin' ? `
                 <div class="mb-8 p-6 bg-blue-50 border-2 border-blue-200 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-6 shadow-sm">
                     <div class="flex items-start gap-3 text-blue-900">
@@ -323,14 +338,34 @@
             let cardsHtml = '';
             for (const key in STAGES) {
                 const stage = STAGES[key];
+                // استخدام الصورة كخلفية وشعار أيضاً
                 cardsHtml += `
-                    <div onclick="handleStageSelect('${stage.id}')" class="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-2 group border border-gray-100">
-                        <div class="${stage.color} h-32 flex items-center justify-center">
-                            <span class="text-6xl group-hover:scale-110 transition duration-300 drop-shadow-md">${stage.iconEmoji}</span>
+                    <div onclick="handleStageSelect('${stage.id}')" class="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-2 group border border-gray-100 relative">
+                        <!-- الجزء الخاص بالصورة الخلفية -->
+                        <div class="h-48 w-full overflow-hidden relative">
+                            <!-- تم إضافة onerror لإخفاء الصورة إذا لم يتم العثور عليها -->
+                            <img src="${stage.img}" alt="${stage.name}" class="w-full h-full object-cover transition duration-700 group-hover:scale-110" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
+                            
+                            <!-- fallback if image fails (العودة للون الأصلي في حال عدم وجود الصورة) -->
+                            <div class="${stage.color} w-full h-full absolute top-0 left-0 hidden items-center justify-center">
+                                <span class="text-6xl text-white">${stage.iconEmoji}</span>
+                            </div>
+                            
+                            <!-- Overlay -->
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-4">
+                                <!-- شعار المرحلة (الصورة المصغرة) -->
+                                <div class="absolute top-4 right-4 bg-white p-1 rounded-full shadow-lg border-2 border-emerald-500">
+                                    <img src="${stage.img}" class="w-10 h-10 rounded-full object-cover" onerror="this.src='https://via.placeholder.com/40'">
+                                </div>
+                            </div>
                         </div>
-                        <div class="p-6 text-center">
-                            <h3 class="text-xl font-bold text-gray-800 mb-2">${stage.name}</h3>
-                            <span class="text-emerald-600 text-sm font-medium">اضغط للدخول</span>
+                        
+                        <div class="p-5 text-center relative z-10">
+                            <h3 class="text-xl font-bold text-gray-800 mb-2 group-hover:text-emerald-600 transition">${stage.name}</h3>
+                            <div class="flex items-center justify-center gap-1 text-emerald-600 text-sm font-medium opacity-80 group-hover:opacity-100">
+                                <span>اضغط للدخول</span>
+                                <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -342,11 +377,14 @@
                         ${adminBadge}
                     </div>
                     ${backupControls}
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                         ${cardsHtml}
                     </div>
                     <div class="mt-12 text-center">
-                        <button onclick="setView('home')" class="text-gray-500 hover:text-emerald-700 font-medium">العودة للرئيسية</button>
+                        <button onclick="setView('home')" class="text-gray-500 hover:text-emerald-700 font-medium flex items-center justify-center gap-2 mx-auto">
+                            <i data-lucide="home" class="w-4 h-4"></i>
+                            العودة للرئيسية
+                        </button>
                     </div>
                 </div>
             `;
@@ -356,6 +394,9 @@
             return `
                 <div class="flex flex-col items-center justify-center min-h-[60vh] p-4 animate-fadeIn" dir="rtl">
                     <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-lg text-center">
+                        <div class="flex justify-center mb-6">
+                            <img src="${STAGES[state.selectedStage]?.img}" class="w-24 h-24 rounded-full object-cover border-4 border-emerald-100 shadow-lg" onerror="this.style.display='none'">
+                        </div>
                         <h2 class="text-2xl font-bold mb-8 text-gray-800">دخول إلى ${STAGES[state.selectedStage]?.name}</h2>
                         <div class="grid grid-cols-2 gap-4">
                             <button onclick="setLoginContext('leader')" class="flex flex-col items-center justify-center p-6 bg-emerald-50 hover:bg-emerald-100 border-2 border-emerald-200 rounded-xl transition group">
@@ -379,10 +420,9 @@
 
         function DashboardScreen() {
             const stage = STAGES[state.selectedStage];
-            const data = state.db[state.selectedStage] || INITIAL_DATA[state.selectedStage];
+            const data = state.db[state.selectedStage];
             const canEdit = state.userRole === 'admin' || state.userRole === 'leader';
             
-            // --- إضافة أزرار النسخ الاحتياطي للقادة أيضاً ---
             const backupSection = canEdit ? `
                 <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex justify-between items-center flex-wrap gap-2">
                     <div class="text-blue-800 text-sm font-bold flex items-center gap-2">
@@ -447,9 +487,9 @@
             } else if (state.activeTab === 'attendance') {
                 const rows = (data.attendance || []).map(a => `
                      <tr class="border-b border-gray-50 hover:bg-gray-50">
-                       <td class="p-3 font-medium">${a.name}</td>
-                       <td class="p-3"><span class="px-3 py-1 rounded-full text-sm ${a.status === 'حاضر' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${a.status}</span></td>
-                       ${canEdit ? `<td class="p-3 text-center"><button onclick="deleteItem('attendance', ${a.id})" class="text-red-500 hover:bg-red-50 p-2 rounded"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>` : ''}
+                        <td class="p-3 font-medium">${a.name}</td>
+                        <td class="p-3"><span class="px-3 py-1 rounded-full text-sm ${a.status === 'حاضر' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${a.status}</span></td>
+                        ${canEdit ? `<td class="p-3 text-center"><button onclick="deleteItem('attendance', ${a.id})" class="text-red-500 hover:bg-red-50 p-2 rounded"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>` : ''}
                      </tr>`).join('');
                 
                 contentHtml = canEdit ? `
@@ -502,14 +542,24 @@
 
             return `
                 <div class="max-w-6xl mx-auto p-4 animate-fadeIn" dir="rtl">
-                    <div class="${stage.color} text-white p-6 rounded-t-2xl shadow-md flex justify-between items-center">
-                        <div>
-                            <h1 class="text-3xl font-bold flex items-center gap-3"><span class="text-4xl">${stage.iconEmoji}</span>${stage.name}</h1>
-                            <p class="opacity-90 mt-1 mr-12 text-sm">${state.userRole === 'admin' ? 'صلاحيات المدير العام' : state.userRole === 'leader' ? 'صلاحيات القائد' : 'وضع المشاهدة'}</p>
+                    <!-- تم تعديل الهيدر ليشمل صورة خلفية -->
+                    <div class="relative rounded-t-2xl overflow-hidden shadow-md text-white h-48">
+                        <img src="${stage.img}" class="absolute w-full h-full object-cover">
+                        <div class="absolute inset-0 bg-gradient-to-r from-black/80 to-transparent p-6 flex justify-between items-center">
+                            <div class="relative z-10">
+                                <h1 class="text-3xl font-bold flex items-center gap-3">
+                                    <!-- تم استبدال الإيموجي بالشعار -->
+                                    <img src="${stage.img}" class="w-16 h-16 rounded-full border-4 border-white/30 shadow-sm object-cover bg-white" onerror="this.src='https://via.placeholder.com/64'">
+                                    ${stage.name}
+                                </h1>
+                                <p class="opacity-90 mt-1 mr-20 text-sm font-medium text-emerald-100">${state.userRole === 'admin' ? 'صلاحيات المدير العام' : state.userRole === 'leader' ? 'صلاحيات القائد' : 'وضع المشاهدة'}</p>
+                            </div>
+                            <button onclick="setView('units')" class="bg-white/20 hover:bg-white/30 p-2 rounded-full transition backdrop-blur-sm relative z-10"><i data-lucide="chevron-left" class="w-6 h-6"></i></button>
                         </div>
-                        <button onclick="setView('units')" class="bg-white/20 hover:bg-white/30 p-2 rounded-full transition"><i data-lucide="chevron-left" class="w-6 h-6"></i></button>
                     </div>
-                    ${backupSection} <!-- أزرار الحفظ تظهر الآن هنا للقادة أيضاً -->
+
+                    ${backupSection}
+
                     <div class="flex overflow-x-auto bg-white shadow border-b border-gray-200">
                         ${tabsHtml}
                     </div>
@@ -520,20 +570,16 @@
             `;
         }
 
-        // --- دالة العرض الرئيسية (Main Render) ---
         function render() {
             const app = document.getElementById('app');
             let html = Header();
-
             if (state.view === 'home') html += HomeScreen();
             else if (state.view === 'login') html += LoginScreen();
             else if (state.view === 'units') html += UnitsScreen();
             else if (state.view === 'unit-auth') html += UnitAuthScreen();
             else if (state.view === 'dashboard') html += DashboardScreen();
-
             app.innerHTML = html;
             if (window.lucide) lucide.createIcons();
-            
             if (state.view === 'login') {
                 const input = document.getElementById('passwordInput');
                 if(input) {
@@ -543,7 +589,6 @@
             }
         }
 
-        // بدء التطبيق
         window.onload = function() {
             loadData();
         };
