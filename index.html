@@ -332,43 +332,51 @@
 
         function HomeScreen() {
             return `
-                <div class="flex flex-col items-center justify-center min-h-[85vh] p-4 animate-fadeIn">
-                    <div class="flex items-center justify-center gap-4 md:gap-10 mb-12"> 
-                        
-                        <!-- الدائرة اليمنى -->
-                        <div class="flex flex-col items-center animate-bounce-slow">
-                            <div class="w-24 h-24 md:w-32 md:h-32 bg-emerald-700 rounded-fu flex items-center justify-center shadow-xl border-4 border-green-700 overflow-hidden transform hover:scale-105 transition rounded-lg">
-                                <img src="https://i.pinimg.com/736x/66/18/be/6618be9986f6409c2de5efb034453dd4.jpg" class="w-full h-full object-cover opacity-100 ">
-                            </div>
-                        </div>
-                        
-                        <!-- الشعار الأوسط: يطفو لوحده بدون إطار -->
-                        <div class="flex flex-col items-center relative z-40 -mt-8 md:-mt-12"> 
-                            <div class="w-35 h-35 md:w-56 md:h-56 flex items-center justify-center transform hover:scale-110 transition duration-500 filter drop-shadow border-4 border-green-700 rounded-lg ">
-                                <!-- الصورة مقصوصة دائرياً ولكن بدون حدود خارجية -->
-                                <img src="https://i.pinimg.com/736x/b6/23/7f/b6237f449b7666f92c96fd59a994982c.jpg" class="w-full h-full object-cover rounded-2*1" >
-                            </div>
-                        </div>
-
-                        <!-- الدائرة اليسرى -->
-                       <div class="flex flex-col items-center animate-bounce-slow">
-                            <div class="w-24 h-24 md:w-32 md:h-32 bg-emerald-700 rounded- flex items-center justify-center shadow-xl border-4 border-green-700 overflow-hidden transform hover:scale-105 transition  rounded-lg">
-                                <img src="https://i.pinimg.com/736x/58/56/b6/5856b6659cffb1319a107d48fca3dc21.jpg" class="w-full h-full object-cover opacity-100">
-                            </div>
-                        </div>
+                <div class="relative flex flex-col items-center justify-center min-h-[85vh] p-4 animate-fadeIn overflow-hidden">
+                    <!-- خلفية الشاشة الرئيسية -->
+                    <div class="absolute inset-0 z-0">
+                        <img src="https://i.pinimg.com/1200x/64/a5/94/64a594dff8b10396e8df4d5c0091c408.jpg" class="w-full h-full object-cover opacity-20">
                     </div>
 
-                    <h1 class="text-4xl md:text-6xl font-extrabold text-emerald-900 mb-2 text-center drop-shadow-sm">فرع مراكش المنارة</h1>
-                    <p class="text-gray-500 mb-12 text-lg">كن مستعداً .. دائماً</p>
+                    <!-- المحتوى الرئيسي (فوق الخلفية) -->
+                    <div class="relative z-10 flex flex-col items-center w-full">
+                        <div class="flex items-center justify-center gap-4 md:gap-10 mb-12"> 
+                            
+                            <!-- الدائرة اليمنى -->
+                            <div class="flex flex-col items-center animate-bounce-slow">
+                                <div class="w-24 h-24 md:w-32 md:h-32 bg-emerald-700 rounded-fu flex items-center justify-center shadow-xl border-4 border-green-700 overflow-hidden transform hover:scale-105 transition rounded-lg">
+                                    <img src="https://i.pinimg.com/736x/66/18/be/6618be9986f6409c2de5efb034453dd4.jpg" class="w-full h-full object-cover opacity-100 ">
+                                </div>
+                            </div>
+                            
+                            <!-- الشعار الأوسط: يطفو لوحده بدون إطار -->
+                            <div class="flex flex-col items-center relative z-40 -mt-8 md:-mt-12"> 
+                                <div class="w-35 h-35 md:w-56 md:h-56 flex items-center justify-center transform hover:scale-110 transition duration-500 filter drop-shadow border-4 border-green-700 rounded-lg ">
+                                    <!-- الصورة مقصوصة دائرياً ولكن بدون حدود خارجية -->
+                                    <img src="https://i.pinimg.com/736x/b6/23/7f/b6237f449b7666f92c96fd59a994982c.jpg" class="w-full h-full object-cover rounded-2*1" >
+                                </div>
+                            </div>
 
-                    <div class="flex flex-col gap-4 w-full max-w-md">
-                        <button onclick="setView('units')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xl font-bold py-4 rounded-xl shadow-lg transform hover:-translate-y-1 transition duration-300 flex items-center justify-center gap-3">
-                            <i data-lucide="users"></i> قادة المراحل والوحدات
-                        </button>
-                        
-                        <button onclick="setLoginContext('admin')" class="bg-gray-800 hover:bg-gray-900 text-white text-lg font-bold py-3 rounded-xl shadow-md transform hover:-translate-y-1 transition duration-300 flex items-center justify-center gap-3">
-                            <i data-lucide="shield" class="w-5 h-5"></i> الدخول إلى الإدارة
-                        </button>
+                            <!-- الدائرة اليسرى -->
+                           <div class="flex flex-col items-center animate-bounce-slow">
+                                <div class="w-24 h-24 md:w-32 md:h-32 bg-emerald-700 rounded- flex items-center justify-center shadow-xl border-4 border-green-700 overflow-hidden transform hover:scale-105 transition  rounded-lg">
+                                    <img src="https://i.pinimg.com/736x/58/56/b6/5856b6659cffb1319a107d48fca3dc21.jpg" class="w-full h-full object-cover opacity-100">
+                                </div>
+                            </div>
+                        </div>
+
+                        <h1 class="text-4xl md:text-6xl font-extrabold text-emerald-900 mb-2 text-center drop-shadow-sm">فرع مراكش المنارة</h1>
+                        <p class="text-gray-500 mb-12 text-lg">كن مستعداً .. دائماً</p>
+
+                        <div class="flex flex-col gap-4 w-full max-w-md">
+                            <button onclick="setView('units')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xl font-bold py-4 rounded-xl shadow-lg transform hover:-translate-y-1 transition duration-300 flex items-center justify-center gap-3">
+                                <i data-lucide="users"></i> قادة المراحل والوحدات
+                            </button>
+                            
+                            <button onclick="setLoginContext('admin')" class="bg-gray-800 hover:bg-gray-900 text-white text-lg font-bold py-3 rounded-xl shadow-md transform hover:-translate-y-1 transition duration-300 flex items-center justify-center gap-3">
+                                <i data-lucide="shield" class="w-5 h-5"></i> الدخول إلى الإدارة
+                            </button>
+                        </div>
                     </div>
                 </div>
             `;
@@ -461,35 +469,6 @@
                         <button onclick="setView('home')" class="text-gray-500 hover:text-emerald-700 font-medium flex items-center justify-center gap-2 mx-auto">
                             <i data-lucide="home" class="w-4 h-4"></i>
                             العودة للرئيسية
-                        </button>
-                    </div>
-                </div>
-            `;
-        }
-
-        function UnitAuthScreen() {
-            return `
-                <div class="flex flex-col items-center justify-center min-h-[60vh] p-4 animate-fadeIn" dir="rtl">
-                    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-lg text-center">
-                        <div class="flex justify-center mb-6">
-                            <!-- object-cover لملء الدائرة بشكل أنيق -->
-                            <img src="${STAGES[state.selectedStage]?.img}" class="w-24 h-24 rounded-full object-cover border-4 border-emerald-100 shadow-lg" onerror="this.style.display='none'">
-                        </div>
-                        <h2 class="text-2xl font-bold mb-8 text-gray-800">دخول إلى ${STAGES[state.selectedStage]?.name}</h2>
-                        <div class="grid grid-cols-2 gap-4">
-                            <button onclick="setLoginContext('leader')" class="flex flex-col items-center justify-center p-6 bg-emerald-50 hover:bg-emerald-100 border-2 border-emerald-200 rounded-xl transition group">
-                                <i data-lucide="user-check" class="text-emerald-700 w-10 h-10 mb-2 group-hover:scale-110 transition"></i>
-                                <span class="font-bold text-emerald-900">أنا قائد</span>
-                                <span class="text-xs text-gray-500 mt-1">تعديل وإدارة</span>
-                            </button>
-                            <button onclick="handleScoutAccess()" class="flex flex-col items-center justify-center p-6 bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 rounded-xl transition group">
-                                <i data-lucide="user" class="text-blue-700 w-10 h-10 mb-2 group-hover:scale-110 transition"></i>
-                                <span class="font-bold text-blue-900">أنا كشاف</span>
-                                <span class="text-xs text-gray-500 mt-1">اطلاع فقط</span>
-                            </button>
-                        </div>
-                        <button onclick="setView('units')" class="mt-6 text-gray-500 flex items-center justify-center gap-1 mx-auto hover:text-gray-700">
-                            <i data-lucide="chevron-left" class="w-4 h-4"></i> عودة للمراحل
                         </button>
                     </div>
                 </div>
