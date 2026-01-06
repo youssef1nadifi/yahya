@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>الكشفية الحسنية المغربية</title>
@@ -11,6 +10,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Supabase CDN (تمت الإضافة) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: 'Tajawal', sans-serif; }
         .animate-fadeIn { animation: fadeIn 0.4s ease-out; }
@@ -34,6 +35,18 @@
 
     <!-- Logic Script -->
     <script>
+        // --- إعدادات Supabase (تمت الإضافة) ---
+        const supabaseUrl = 'ضع_SUPABASE_URL_هنا';
+        const supabaseKey = 'ضع_ANON_KEY_هنا';
+        
+        // التحقق من وجود المكتبة وأن الرابط صالح قبل تهيئة العميل لتجنب الأخطاء
+        const isValidSupabaseUrl = (url) => url && url.startsWith('http');
+        
+        // تم تغيير اسم المتغير من supabase إلى supabaseClient لتجنب التعارض مع المكتبة
+        const supabaseClient = (window.supabase && isValidSupabaseUrl(supabaseUrl)) 
+            ? window.supabase.createClient(supabaseUrl, supabaseKey) 
+            : null;
+
         // --- البيانات الأولية ---
         const getInitialData = () => ({
             cubs: { members: [], attendance: [], projects: [], program: [] },
@@ -57,28 +70,28 @@
                 name: 'مرحلة الأشبال', 
                 color: 'bg-yellow-500', 
                 iconEmoji: '🐻',
-                img: ' https://i.pinimg.com/736x/ff/cd/96/ffcd96eef41c77228319b3c236ce8753.jpg' 
+                img: 'https://i.pinimg.com/736x/51/22/69/5122697c5906f09831188df376da0429.jpg' 
             },
             scouts: { 
                 id: 'scouts', 
                 name: 'مرحلة الكشافة', 
                 color: 'bg-green-600', 
                 iconEmoji: '⚜️',
-                img: 'https://i.pinimg.com/736x/51/22/69/5122697c5906f09831188df376da0429.jpg'
+                img: 'https://i.pinimg.com/736x/ff/cd/96/ffcd96eef41c77228319b3c236ce8753.jpg'
             },
             advanced: { 
                 id: 'advanced', 
                 name: 'مرحلة الكشاف المتقدم', 
                 color: 'bg-red-700', 
                 iconEmoji: '🦅',
-                img: 'https://i.pinimg.com/736x/8f/13/ec/8f13ec84be6a737ac2cd586ba0aec056.jpg'
+                img: 'https://i.pinimg.com/736x/71/18/93/7118931019215e0706c98a47f52cc77c.jpg'
             },
             rovers: { 
                 id: 'rovers', 
                 name: 'مرحلة الجوالة', 
                 color: 'bg-blue-800', 
                 iconEmoji: '🚶',
-                img: 'https://i.pinimg.com/736x/71/18/93/7118931019215e0706c98a47f52cc77c.jpg'
+                img: 'https://i.pinimg.com/736x/8f/13/ec/8f13ec84be6a737ac2cd586ba0aec056.jpg'
             }
         };
 
@@ -116,26 +129,78 @@
             }, 3000);
         }
 
-        // --- إدارة البيانات (LocalStorage) ---
-        function loadData() {
-            try {
-                const savedData = localStorage.getItem('scoutsData_v3');
-                if (savedData) {
-                    state.db = JSON.parse(savedData);
-                } else {
+        // --- إدارة البيانات (LocalStorage + Supabase) ---
+        async function loadData() {
+            let loadedFromCloud = false;
+
+            // 1. محاولة التحميل من Supabase أولاً
+            if (supabaseClient) {
+                try {
+                    // نفترض وجود جدول 'scouts_data'
+                    const { data, error } = await supabaseClient
+                        .from('scouts_data')
+                        .select('payload')
+                        .eq('id', 1)
+                        .single();
+                        
+                    if (!error && data && data.payload) {
+                        state.db = data.payload;
+                        loadedFromCloud = true;
+                        console.log("Loaded from Supabase successfully");
+                    }
+                } catch (e) {
+                    console.error("Supabase load error:", e);
+                }
+            }
+
+            // 2. إذا لم ننجح في التحميل السحابي، نستخدم LocalStorage
+            if (!loadedFromCloud) {
+                try {
+                    const savedData = localStorage.getItem('scoutsData_v3');
+                    if (savedData) {
+                        state.db = JSON.parse(savedData);
+                    } else {
+                        state.db = getInitialData();
+                    }
+                } catch (e) {
+                    console.error("Error loading local data", e);
                     state.db = getInitialData();
                 }
-            } catch (e) {
-                console.error("Error loading data", e);
-                state.db = getInitialData();
             }
             render();
         }
 
-        function saveData(silent = false) {
+        async function saveData(silent = false) {
             try {
+                // 1. الحفظ المحلي (LocalStorage) - كنسخة احتياطية سريعة
                 localStorage.setItem('scoutsData_v3', JSON.stringify(state.db));
-                if (!silent) showToast('تم الحفظ تلقائياً في المتصفح');
+                
+                let cloudSuccess = false;
+
+                // 2. الحفظ السحابي (Supabase)
+                if (supabaseClient) {
+                    // نقوم بعمل Upsert (تحديث أو إنشاء) للصف رقم 1
+                    const { error } = await supabaseClient
+                        .from('scouts_data')
+                        .upsert({ id: 1, payload: state.db });
+                    
+                    if (error) {
+                        console.error('Supabase Save Error:', error);
+                    } else {
+                        cloudSuccess = true;
+                    }
+                }
+
+                // إظهار التنبيهات
+                if (!silent) {
+                    if (cloudSuccess) {
+                        showToast('تم الحفظ سحابياً ومحلياً بنجاح');
+                    } else if (!supabaseClient) {
+                        showToast('تم الحفظ محلياً (لا يوجد اتصال سحابي)');
+                    } else {
+                        showToast('تم الحفظ محلياً (فشل السحابي)', 'error');
+                    }
+                }
             } catch (e) {
                 console.error("Save failed", e);
                 showToast('تنبيه: ذاكرة المتصفح ممتلئة!', 'error');
@@ -155,7 +220,6 @@
             downloadAnchorNode.remove();
             showToast('تم تحميل ملف النسخة الاحتياطية');
         }
-        
 
         function triggerImport() {
             document.getElementById('import-input').click();
@@ -192,15 +256,14 @@
         function addItem(section, item) {
             const newItem = { ...item, id: Date.now(), createdAt: new Date().toLocaleDateString('ar-MA') };
             state.db[state.selectedStage][section].push(newItem);
-            saveData(true); 
+            saveData(false); // تم تغييرها لتظهر إشعار الحفظ
             render();
-            showToast('تمت الإضافة والحفظ');
         }
 
         function deleteItem(section, id) {
             if (confirm('هل أنت متأكد من الحذف؟')) {
                 state.db[state.selectedStage][section] = state.db[state.selectedStage][section].filter(i => i.id !== id);
-                saveData(true);
+                saveData(false);
                 render();
                 showToast('تم الحذف بنجاح', 'error');
             }
@@ -278,41 +341,6 @@
                                 <img src="https://i.pinimg.com/736x/66/18/be/6618be9986f6409c2de5efb034453dd4.jpg" class="w-full h-full object-cover opacity-90">
                             </div>
                         </div>
-                        <form id="contactForm">
-  <input type="text" id="name" placeholder="الاسم" required />
-  <input type="email" id="email" placeholder="البريد الإلكتروني" required />
-  <textarea id="message" placeholder="رسالتك" required></textarea>
-  <button type="submit">إرسال</button>
-</form>
-<script>
-  document.getElementById("contactForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const name = document.getElementById("name").value;
-    const email = document.getElementById("email").value;
-    const message = document.getElementById("message").value;
-
-    try {
-      await databases.createDocument(
-        "main",        // Database ID
-        "messages",    // Table ID
-        Appwrite.ID.unique(),
-        {
-          name: name,
-          email: email,
-          message: message,
-          createdAt: new Date(),
-        }
-      );
-
-      alert("تم إرسال الرسالة بنجاح ✅");
-      e.target.reset();
-    } catch (err) {
-      console.error(err);
-      alert("حدث خطأ ❌");
-    }
-  });
-</script>
                         
                         <!-- الشعار الأوسط: يطفو لوحده بدون إطار -->
                         <div class="flex flex-col items-center relative z-20 -mt-8 md:-mt-12"> 
@@ -643,15 +671,6 @@
             loadData();
         };
     </script>
-    <script>
-  const client = new Appwrite.Client();
-
-  client
-    .setEndpoint("https://cloud.appwrite.io/v1")
-    .setProject("695d66230028803bd8d1");
-
-  const databases = new Appwrite.Databases(client);
-</script>
+    
 </body>
 </html>
-
