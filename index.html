@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
+    <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>الكشفية الحسنية المغربية</title>
@@ -154,6 +155,7 @@
             downloadAnchorNode.remove();
             showToast('تم تحميل ملف النسخة الاحتياطية');
         }
+        
 
         function triggerImport() {
             document.getElementById('import-input').click();
@@ -276,6 +278,41 @@
                                 <img src="https://i.pinimg.com/736x/66/18/be/6618be9986f6409c2de5efb034453dd4.jpg" class="w-full h-full object-cover opacity-90">
                             </div>
                         </div>
+                        <form id="contactForm">
+  <input type="text" id="name" placeholder="الاسم" required />
+  <input type="email" id="email" placeholder="البريد الإلكتروني" required />
+  <textarea id="message" placeholder="رسالتك" required></textarea>
+  <button type="submit">إرسال</button>
+</form>
+<script>
+  document.getElementById("contactForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const name = document.getElementById("name").value;
+    const email = document.getElementById("email").value;
+    const message = document.getElementById("message").value;
+
+    try {
+      await databases.createDocument(
+        "main",        // Database ID
+        "messages",    // Table ID
+        Appwrite.ID.unique(),
+        {
+          name: name,
+          email: email,
+          message: message,
+          createdAt: new Date(),
+        }
+      );
+
+      alert("تم إرسال الرسالة بنجاح ✅");
+      e.target.reset();
+    } catch (err) {
+      console.error(err);
+      alert("حدث خطأ ❌");
+    }
+  });
+</script>
                         
                         <!-- الشعار الأوسط: يطفو لوحده بدون إطار -->
                         <div class="flex flex-col items-center relative z-20 -mt-8 md:-mt-12"> 
@@ -606,5 +643,15 @@
             loadData();
         };
     </script>
+    <script>
+  const client = new Appwrite.Client();
+
+  client
+    .setEndpoint("https://cloud.appwrite.io/v1")
+    .setProject("695d66230028803bd8d1");
+
+  const databases = new Appwrite.Databases(client);
+</script>
 </body>
 </html>
+
