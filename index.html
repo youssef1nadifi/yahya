@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام الكشافة المتكامل</title>
+    <title>الكشفية الحسنية المغربية</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts -->
@@ -250,10 +250,15 @@
                 : '';
             
             return `
-                <div class="w-full bg-emerald-900 text-white p-4 shadow-lg flex justify-between items-center" dir="rtl">
-                    <div class="font-bold text-xl flex items-center gap-2">
-                        <i data-lucide="tent" class="w-6 h-6"></i>
-                        نظام الكشافة المتكامل
+                <div class="w-full bg-emerald-900 text-white p-3 shadow-lg flex justify-between items-center" dir="rtl">
+                    <div class="font-bold text-xl flex items-center gap-3">
+                        <!-- الشعار الجديد هنا -->
+                        <img src="https://i.pinimg.com/736x/66/18/be/6618be9986f6409c2de5efb034453dd4.jpg" 
+                             class="w-10 h-10 rounded-full object-cover border-2 border-white/30 shadow-md hover:scale-110 transition duration-300"
+                             alt="شعار الكشافة"
+                             onerror="this.style.display='none'">
+                             
+                        <span class="tracking-wide">الكشفية الحسنية المغربية</span>
                     </div>
                     ${logoutBtn}
                 </div>
@@ -263,19 +268,26 @@
         function HomeScreen() {
             return `
                 <div class="flex flex-col items-center justify-center min-h-[85vh] p-4 animate-fadeIn">
-                    <div class="flex gap-4 md:gap-12 mb-12">
+                    <div class="flex items-center justify-center gap-4 md:gap-10 mb-12"> 
+                        
+                        <!-- الدائرة اليمنى -->
                         <div class="flex flex-col items-center animate-bounce-slow">
-                            <div class="w-24 h-24 md:w-32 md:h-32 bg-emerald-700 rounded-full flex items-center justify-center shadow-xl border-4 border-yellow-400">
-                                <i data-lucide="tent" class="text-white w-12 h-12 md:w-16 md:h-16"></i>
+                            <div class="w-24 h-24 md:w-32 md:h-32 bg-emerald-700 rounded-full flex items-center justify-center shadow-xl border-4 border-yellow-400 overflow-hidden transform hover:scale-105 transition">
+                                <img src="https://i.pinimg.com/736x/66/18/be/6618be9986f6409c2de5efb034453dd4.jpg" class="w-full h-full object-cover opacity-90">
                             </div>
                         </div>
-                        <div class="flex flex-col items-center -mt-8">
-                            <div class="w-28 h-28 md:w-40 md:h-40 bg-white rounded-full flex items-center justify-center shadow-2xl border-4 border-emerald-600 z-10">
-                                <i data-lucide="flame" class="text-orange-500 w-16 h-16 md:w-20 md:h-20"></i>
+                        
+                        <!-- الشعار الأوسط: يطفو لوحده بدون إطار -->
+                        <div class="flex flex-col items-center relative z-20 -mt-8 md:-mt-12"> 
+                            <div class="w-40 h-40 md:w-56 md:h-56 flex items-center justify-center transform hover:scale-110 transition duration-500 filter drop-shadow-2xl">
+                                <!-- الصورة مقصوصة دائرياً ولكن بدون حدود خارجية -->
+                                <img src="https://i.pinimg.com/736x/27/94/5a/27945aebba18d54540f118484ec9e692.jpg" class="w-full h-full object-cover rounded-full">
                             </div>
                         </div>
+
+                        <!-- الدائرة اليسرى -->
                         <div class="flex flex-col items-center animate-bounce-slow" style="animation-delay: 0.2s">
-                            <div class="w-24 h-24 md:w-32 md:h-32 bg-emerald-700 rounded-full flex items-center justify-center shadow-xl border-4 border-yellow-400">
+                            <div class="w-24 h-24 md:w-32 md:h-32 bg-emerald-700 rounded-full flex items-center justify-center shadow-xl border-4 border-yellow-400 transform hover:scale-105 transition">
                                 <i data-lucide="compass" class="text-white w-12 h-12 md:w-16 md:h-16"></i>
                             </div>
                         </div>
@@ -338,22 +350,22 @@
             let cardsHtml = '';
             for (const key in STAGES) {
                 const stage = STAGES[key];
-                // استخدام الصورة كخلفية وشعار أيضاً
+                // استخدام الصورة كخلفية كاملة للبطاقة (object-cover) لجمالية أفضل
                 cardsHtml += `
                     <div onclick="handleStageSelect('${stage.id}')" class="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-2 group border border-gray-100 relative">
                         <!-- الجزء الخاص بالصورة الخلفية -->
-                        <div class="h-48 w-full overflow-hidden relative">
-                            <!-- تم إضافة onerror لإخفاء الصورة إذا لم يتم العثور عليها -->
+                        <div class="h-48 w-full overflow-hidden relative bg-white">
+                            <!-- تم إرجاعها إلى object-cover لتملأ المساحة بشكل جميل -->
                             <img src="${stage.img}" alt="${stage.name}" class="w-full h-full object-cover transition duration-700 group-hover:scale-110" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
                             
-                            <!-- fallback if image fails (العودة للون الأصلي في حال عدم وجود الصورة) -->
+                            <!-- fallback if image fails -->
                             <div class="${stage.color} w-full h-full absolute top-0 left-0 hidden items-center justify-center">
                                 <span class="text-6xl text-white">${stage.iconEmoji}</span>
                             </div>
                             
                             <!-- Overlay -->
-                            <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-4">
-                                <!-- شعار المرحلة (الصورة المصغرة) -->
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-4 pointer-events-none">
+                                <!-- شعار المرحلة (الصورة المصغرة) - object-cover لملء الدائرة -->
                                 <div class="absolute top-4 right-4 bg-white p-1 rounded-full shadow-lg border-2 border-emerald-500">
                                     <img src="${stage.img}" class="w-10 h-10 rounded-full object-cover" onerror="this.src='https://via.placeholder.com/40'">
                                 </div>
@@ -395,6 +407,7 @@
                 <div class="flex flex-col items-center justify-center min-h-[60vh] p-4 animate-fadeIn" dir="rtl">
                     <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-lg text-center">
                         <div class="flex justify-center mb-6">
+                            <!-- object-cover لملء الدائرة بشكل أنيق -->
                             <img src="${STAGES[state.selectedStage]?.img}" class="w-24 h-24 rounded-full object-cover border-4 border-emerald-100 shadow-lg" onerror="this.style.display='none'">
                         </div>
                         <h2 class="text-2xl font-bold mb-8 text-gray-800">دخول إلى ${STAGES[state.selectedStage]?.name}</h2>
@@ -595,5 +608,3 @@
     </script>
 </body>
 </html>
-
-
