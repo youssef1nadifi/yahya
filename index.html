@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Supabase CDN (تمت الإضافة) -->
+    <!-- Supabase CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: 'Tajawal', sans-serif; }
@@ -35,14 +35,14 @@
 
     <!-- Logic Script -->
     <script>
-        // --- إعدادات Supabase (تمت الإضافة) ---
+        // --- إعدادات Supabase ---
         const supabaseUrl = 'ضع_SUPABASE_URL_هنا';
         const supabaseKey = 'ضع_ANON_KEY_هنا';
         
-        // التحقق من وجود المكتبة وأن الرابط صالح قبل تهيئة العميل لتجنب الأخطاء
+        // التحقق من صلاحية الرابط
         const isValidSupabaseUrl = (url) => url && url.startsWith('http');
         
-        // تم تغيير اسم المتغير من supabase إلى supabaseClient لتجنب التعارض مع المكتبة
+        // تهيئة العميل
         const supabaseClient = (window.supabase && isValidSupabaseUrl(supabaseUrl)) 
             ? window.supabase.createClient(supabaseUrl, supabaseKey) 
             : null;
@@ -63,7 +63,7 @@
             rovers: "yahya12"
         };
 
-        // --- تحديث مسارات الصور لتكون روابط Pinterest المباشرة ---
+        // --- بيانات المراحل ---
         const STAGES = {
             cubs: { 
                 id: 'cubs', 
@@ -107,7 +107,7 @@
             loginContext: null
         };
 
-        // --- نظام الإشعارات (Toast) ---
+        // --- Toast ---
         function showToast(message, type = 'success') {
             const existingToasts = document.querySelectorAll('.toast-msg');
             existingToasts.forEach(t => t.remove());
@@ -129,14 +129,11 @@
             }, 3000);
         }
 
-        // --- إدارة البيانات (LocalStorage + Supabase) ---
+        // --- Data Management ---
         async function loadData() {
             let loadedFromCloud = false;
-
-            // 1. محاولة التحميل من Supabase أولاً
             if (supabaseClient) {
                 try {
-                    // نفترض وجود جدول 'scouts_data'
                     const { data, error } = await supabaseClient
                         .from('scouts_data')
                         .select('payload')
@@ -153,7 +150,6 @@
                 }
             }
 
-            // 2. إذا لم ننجح في التحميل السحابي، نستخدم LocalStorage
             if (!loadedFromCloud) {
                 try {
                     const savedData = localStorage.getItem('scoutsData_v3');
@@ -172,34 +168,22 @@
 
         async function saveData(silent = false) {
             try {
-                // 1. الحفظ المحلي (LocalStorage) - كنسخة احتياطية سريعة
                 localStorage.setItem('scoutsData_v3', JSON.stringify(state.db));
-                
                 let cloudSuccess = false;
 
-                // 2. الحفظ السحابي (Supabase)
                 if (supabaseClient) {
-                    // نقوم بعمل Upsert (تحديث أو إنشاء) للصف رقم 1
                     const { error } = await supabaseClient
                         .from('scouts_data')
                         .upsert({ id: 1, payload: state.db });
                     
-                    if (error) {
-                        console.error('Supabase Save Error:', error);
-                    } else {
-                        cloudSuccess = true;
-                    }
+                    if (error) console.error('Supabase Save Error:', error);
+                    else cloudSuccess = true;
                 }
 
-                // إظهار التنبيهات
                 if (!silent) {
-                    if (cloudSuccess) {
-                        showToast('تم الحفظ سحابياً ومحلياً بنجاح');
-                    } else if (!supabaseClient) {
-                        showToast('تم الحفظ محلياً (لا يوجد اتصال سحابي)');
-                    } else {
-                        showToast('تم الحفظ محلياً (فشل السحابي)', 'error');
-                    }
+                    if (cloudSuccess) showToast('تم الحفظ سحابياً ومحلياً بنجاح');
+                    else if (!supabaseClient) showToast('تم الحفظ محلياً (لا يوجد اتصال سحابي)');
+                    else showToast('تم الحفظ محلياً (فشل السحابي)', 'error');
                 }
             } catch (e) {
                 console.error("Save failed", e);
@@ -207,13 +191,13 @@
             }
         }
 
-        // --- ميزات النسخ الاحتياطي ---
+        // --- Export/Import ---
         function exportDatabase() {
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.db));
             const downloadAnchorNode = document.createElement('a');
             downloadAnchorNode.setAttribute("href", dataStr);
             const date = new Date();
-            const fileName = `نسخة_كشافة_${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}_${date.getHours()}-${date.getMinutes()}.json`;
+            const fileName = `نسخة_كشافة_${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}.json`;
             downloadAnchorNode.setAttribute("download", fileName);
             document.body.appendChild(downloadAnchorNode);
             downloadAnchorNode.click();
@@ -221,14 +205,11 @@
             showToast('تم تحميل ملف النسخة الاحتياطية');
         }
 
-        function triggerImport() {
-            document.getElementById('import-input').click();
-        }
+        function triggerImport() { document.getElementById('import-input').click(); }
 
         function importDatabase(input) {
             const file = input.files[0];
             if (!file) return;
-            
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
@@ -237,26 +218,21 @@
                         if(confirm('سيتم استبدال البيانات الحالية بالبيانات الموجودة في الملف. هل أنت متأكد؟')) {
                             state.db = json;
                             saveData(true);
-                            alert("تم استرجاع قاعدة البيانات بنجاح!");
                             render();
                             showToast('تمت استعادة البيانات بنجاح');
                         }
-                    } else {
-                        alert("هذا الملف لا يحتوي على بيانات كشفية صالحة.");
-                    }
-                } catch(err) {
-                    alert("ملف تالف أو غير صالح.");
-                }
+                    } else alert("ملف غير صالح.");
+                } catch(err) { alert("ملف تالف."); }
             };
             reader.readAsText(file);
             input.value = '';
         }
 
-        // --- دوال التعامل مع البيانات (CRUD) ---
+        // --- CRUD ---
         function addItem(section, item) {
             const newItem = { ...item, id: Date.now(), createdAt: new Date().toLocaleDateString('ar-MA') };
             state.db[state.selectedStage][section].push(newItem);
-            saveData(false); // تم تغييرها لتظهر إشعار الحفظ
+            saveData(false);
             render();
         }
 
@@ -269,7 +245,7 @@
             }
         }
 
-        // --- دوال الواجهة (UI Actions) ---
+        // --- Navigation ---
         function setView(v) { state.view = v; state.errorMsg = ''; state.passwordInput = ''; render(); }
         function setLoginContext(c) { state.loginContext = c; setView('login'); }
         function handleStageSelect(id) { 
@@ -289,7 +265,6 @@
         function handleLoginSubmit() {
             const pwd = state.passwordInput;
             let success = false;
-            
             if (state.loginContext === 'admin' && pwd === PASSWORDS.admin) {
                 state.userRole = 'admin';
                 setView('units');
@@ -299,30 +274,25 @@
                 setView('dashboard');
                 success = true;
             }
-
             if (!success) {
                 state.errorMsg = 'كلمة المرور غير صحيحة!';
                 render();
             }
         }
 
-        // --- مكونات الواجهة (Components) ---
+        // --- Components ---
         function Header() {
             const logoutBtn = state.view !== 'home' 
                 ? `<button onclick="handleLogout()" class="flex items-center gap-1 bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm transition text-white">
                      <i data-lucide="log-out" class="w-4 h-4"></i> خروج
-                   </button>` 
-                : '';
+                   </button>` : '';
             
             return `
                 <div class="w-full bg-emerald-900 text-white p-3 shadow-lg flex justify-between items-center" dir="rtl">
                     <div class="font-bold text-xl flex items-center gap-3">
-                        <!-- الشعار الجديد هنا -->
                         <img src="https://i.pinimg.com/736x/66/18/be/6618be9986f6409c2de5efb034453dd4.jpg" 
                              class="w-10 h-10 rounded-lg object-cover border-2 border-white/30 shadow-md hover:scale-110 transition duration-300"
-                             alt="شعار الكشافة"
-                             onerror="this.style.display='none'">
-                             
+                             alt="شعار الكشافة" onerror="this.style.display='none'">
                         <span class="tracking-wide">الكشفية الحسنية المغربية</span>
                     </div>
                     ${logoutBtn}
@@ -333,47 +303,46 @@
         function HomeScreen() {
             return `
                 <div class="relative flex flex-col items-center justify-center min-h-[85vh] p-4 animate-fadeIn overflow-hidden">
-                    <!-- خلفية الشاشة الرئيسية -->
-                    <div class="absolute inset-0 z-0">
-                        <img src="https://i.pinimg.com/1200x/64/a5/94/64a594dff8b10396e8df4d5c0091c408.jpg" class="w-full h-full object-cover opacity-20">
+                    <!-- خلفية الشاشة الرئيسية - صورة -->
+                    <div class="absolute inset-0 z-0 bg-emerald-100">
+                        <img src="https://i.pinimg.com/1200x/64/a5/94/64a594dff8b10396e8df4d5c0091c408.jpg" class="w-full h-full object-cover opacity-30" alt="خلفية كشفية">
+                        <!-- طبقة إضافية لتحسين القراءة -->
+                        <div class="absolute inset-0 bg-gradient-to-b from-white/10 to-emerald-900/30 pointer-events-none"></div>
                     </div>
 
-                    <!-- المحتوى الرئيسي (فوق الخلفية) -->
                     <div class="relative z-10 flex flex-col items-center w-full">
                         <div class="flex items-center justify-center gap-4 md:gap-10 mb-12"> 
-                            
-                            <!-- الدائرة اليمنى -->
+                            <!-- الدائرة اليمنى - تم تصحيح rounded-full -->
                             <div class="flex flex-col items-center animate-bounce-slow">
-                                <div class="w-24 h-24 md:w-32 md:h-32 bg-emerald-700 rounded-fu flex items-center justify-center shadow-xl border-4 border-green-700 overflow-hidden transform hover:scale-105 transition rounded-lg">
-                                    <img src="https://i.pinimg.com/736x/66/18/be/6618be9986f6409c2de5efb034453dd4.jpg" class="w-full h-full object-cover opacity-100 ">
+                                <div class="w-24 h-24 md:w-32 md:h-32 bg-emerald-700 rounded-lg flex items-center justify-center shadow-xl border-4 border-green-700 overflow-hidden transform hover:scale-105 transition">
+                                    <img src="https://i.pinimg.com/736x/66/18/be/6618be9986f6409c2de5efb034453dd4.jpg" class="w-full h-full object-cover opacity-100">
                                 </div>
                             </div>
                             
-                            <!-- الشعار الأوسط: يطفو لوحده بدون إطار -->
+                            <!-- الشعار الأوسط -->
                             <div class="flex flex-col items-center relative z-40 -mt-8 md:-mt-12"> 
-                                <div class="w-35 h-35 md:w-56 md:h-56 flex items-center justify-center transform hover:scale-110 transition duration-500 filter drop-shadow border-4 border-green-700 rounded-lg ">
-                                    <!-- الصورة مقصوصة دائرياً ولكن بدون حدود خارجية -->
-                                    <img src="https://i.pinimg.com/736x/b6/23/7f/b6237f449b7666f92c96fd59a994982c.jpg" class="w-full h-full object-cover rounded-2*1" >
+                                <div class="w-35 h-35 md:w-56 md:h-56 flex items-center justify-center transform hover:scale-110 transition duration-500 filter drop-shadow-2xl border-4 border-green-700 rounded-lg overflow-hidden">
+                                    <img src="https://i.pinimg.com/736x/b6/23/7f/b6237f449b7666f92c96fd59a994982c.jpg" class="w-full h-full object-cover">
                                 </div>
                             </div>
 
-                            <!-- الدائرة اليسرى -->
+                            <!-- الدائرة اليسرى - تم تصحيح rounded-full -->
                            <div class="flex flex-col items-center animate-bounce-slow">
-                                <div class="w-24 h-24 md:w-32 md:h-32 bg-emerald-700 rounded- flex items-center justify-center shadow-xl border-4 border-green-700 overflow-hidden transform hover:scale-105 transition  rounded-lg">
+                                <div class="w-24 h-24 md:w-32 md:h-32 bg-emerald-700 rounded-lg flex items-center justify-center shadow-xl border-4 border-green-700 overflow-hidden transform hover:scale-105 transition">
                                     <img src="https://i.pinimg.com/736x/58/56/b6/5856b6659cffb1319a107d48fca3dc21.jpg" class="w-full h-full object-cover opacity-100">
                                 </div>
                             </div>
                         </div>
 
-                        <h1 class="text-4xl md:text-6xl font-extrabold text-emerald-900 mb-2 text-center drop-shadow-sm">فرع مراكش المنارة</h1>
-                        <p class="text-gray-500 mb-12 text-lg">كن مستعداً .. دائماً</p>
+                        <h1 class="text-4xl md:text-6xl font-extrabold text-emerald-900 mb-2 text-center drop-shadow-sm text-white drop-shadow-lg" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">فرع مراكش المنارة</h1>
+                        <p class="text-white mb-12 text-lg font-bold drop-shadow-md">كن مستعداً .. دائماً</p>
 
                         <div class="flex flex-col gap-4 w-full max-w-md">
-                            <button onclick="setView('units')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xl font-bold py-4 rounded-xl shadow-lg transform hover:-translate-y-1 transition duration-300 flex items-center justify-center gap-3">
+                            <button onclick="setView('units')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xl font-bold py-4 rounded-xl shadow-lg transform hover:-translate-y-1 transition duration-300 flex items-center justify-center gap-3 border border-emerald-400">
                                 <i data-lucide="users"></i> قادة المراحل والوحدات
                             </button>
                             
-                            <button onclick="setLoginContext('admin')" class="bg-gray-800 hover:bg-gray-900 text-white text-lg font-bold py-3 rounded-xl shadow-md transform hover:-translate-y-1 transition duration-300 flex items-center justify-center gap-3">
+                            <button onclick="setLoginContext('admin')" class="bg-gray-800 hover:bg-gray-900 text-white text-lg font-bold py-3 rounded-xl shadow-md transform hover:-translate-y-1 transition duration-300 flex items-center justify-center gap-3 border border-gray-600">
                                 <i data-lucide="shield" class="w-5 h-5"></i> الدخول إلى الإدارة
                             </button>
                         </div>
@@ -423,28 +392,19 @@
             let cardsHtml = '';
             for (const key in STAGES) {
                 const stage = STAGES[key];
-                // استخدام الصورة كخلفية كاملة للبطاقة (object-cover) لجمالية أفضل
                 cardsHtml += `
                     <div onclick="handleStageSelect('${stage.id}')" class="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-2 group border border-gray-100 relative">
-                        <!-- الجزء الخاص بالصورة الخلفية -->
                         <div class="h-48 w-full overflow-hidden relative bg-white">
-                            <!-- تم إرجاعها إلى object-cover لتملأ المساحة بشكل جميل -->
                             <img src="${stage.img}" alt="${stage.name}" class="w-full h-full object-cover transition duration-700 group-hover:scale-110" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
-                            
-                            <!-- fallback if image fails -->
                             <div class="${stage.color} w-full h-full absolute top-0 left-0 hidden items-center justify-center">
                                 <span class="text-6xl text-white">${stage.iconEmoji}</span>
                             </div>
-                            
-                            <!-- Overlay -->
                             <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-4 pointer-events-none">
-                                <!-- شعار المرحلة (الصورة المصغرة) - object-cover لملء الدائرة -->
                                 <div class="absolute top-4 right-4 bg-white p-1 rounded-full shadow-lg border-2 border-emerald-500">
                                     <img src="${stage.img}" class="w-10 h-10 rounded-full object-cover" onerror="this.src='https://via.placeholder.com/40'">
                                 </div>
                             </div>
                         </div>
-                        
                         <div class="p-5 text-center relative z-10">
                             <h3 class="text-xl font-bold text-gray-800 mb-2 group-hover:text-emerald-600 transition">${stage.name}</h3>
                             <div class="flex items-center justify-center gap-1 text-emerald-600 text-sm font-medium opacity-80 group-hover:opacity-100">
@@ -475,6 +435,34 @@
             `;
         }
 
+        function UnitAuthScreen() {
+            return `
+                <div class="flex flex-col items-center justify-center min-h-[60vh] p-4 animate-fadeIn" dir="rtl">
+                    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-lg text-center">
+                        <div class="flex justify-center mb-6">
+                            <img src="${STAGES[state.selectedStage]?.img}" class="w-24 h-24 rounded-full object-cover border-4 border-emerald-100 shadow-lg" onerror="this.style.display='none'">
+                        </div>
+                        <h2 class="text-2xl font-bold mb-8 text-gray-800">دخول إلى ${STAGES[state.selectedStage]?.name}</h2>
+                        <div class="grid grid-cols-2 gap-4">
+                            <button onclick="setLoginContext('leader')" class="flex flex-col items-center justify-center p-6 bg-emerald-50 hover:bg-emerald-100 border-2 border-emerald-200 rounded-xl transition group">
+                                <i data-lucide="user-check" class="text-emerald-700 w-10 h-10 mb-2 group-hover:scale-110 transition"></i>
+                                <span class="font-bold text-emerald-900">أنا قائد</span>
+                                <span class="text-xs text-gray-500 mt-1">تعديل وإدارة</span>
+                            </button>
+                            <button onclick="handleScoutAccess()" class="flex flex-col items-center justify-center p-6 bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 rounded-xl transition group">
+                                <i data-lucide="user" class="text-blue-700 w-10 h-10 mb-2 group-hover:scale-110 transition"></i>
+                                <span class="font-bold text-blue-900">أنا كشاف</span>
+                                <span class="text-xs text-gray-500 mt-1">اطلاع فقط</span>
+                            </button>
+                        </div>
+                        <button onclick="setView('units')" class="mt-6 text-gray-500 flex items-center justify-center gap-1 mx-auto hover:text-gray-700">
+                            <i data-lucide="chevron-left" class="w-4 h-4"></i> عودة للمراحل
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
         function DashboardScreen() {
             const stage = STAGES[state.selectedStage];
             const data = state.db[state.selectedStage];
@@ -488,7 +476,7 @@
                     </div>
                     <div class="flex gap-2">
                         <button onclick="exportDatabase()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 transition shadow-sm">
-                            <i data-lucide="download" class="w-4 h-4"></i> تحميل نسخة
+                            <i data-lucide="download" class="w-4 h-4"></i> حفظ نسخة
                         </button>
                         <button onclick="triggerImport()" class="bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 transition shadow-sm">
                             <i data-lucide="upload" class="w-4 h-4"></i> استرجاع
@@ -514,7 +502,6 @@
             `).join('');
 
             let contentHtml = '';
-            
             const renderTable = (headers, rows) => `
                 <div class="overflow-x-auto">
                     <table class="w-full text-right border-collapse">
@@ -590,7 +577,7 @@
                 
                 contentHtml = canEdit ? `
                      <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('program', {activity: fd.get('activity'), date: fd.get('date'), notes: fd.get('notes')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
-                        <input name="activity" required placeholder="النشاط" class="p-2 border rounded">
+                        <input name="name" required placeholder="النشاط" class="p-2 border rounded">
                         <input name="date" required type="date" class="p-2 border rounded">
                         <input name="notes" placeholder="ملاحظات" class="p-2 border rounded">
                         <button type="submit" class="bg-emerald-600 text-white p-2 rounded hover:bg-emerald-700 flex items-center justify-center gap-1 font-bold"><i data-lucide="plus" class="w-4 h-4"></i> إضافة</button>
@@ -600,13 +587,11 @@
 
             return `
                 <div class="max-w-6xl mx-auto p-4 animate-fadeIn" dir="rtl">
-                    <!-- تم تعديل الهيدر ليشمل صورة خلفية -->
                     <div class="relative rounded-t-2xl overflow-hidden shadow-md text-white h-48">
                         <img src="${stage.img}" class="absolute w-full h-full object-cover">
                         <div class="absolute inset-0 bg-gradient-to-r from-black/80 to-transparent p-6 flex justify-between items-center">
                             <div class="relative z-10">
                                 <h1 class="text-3xl font-bold flex items-center gap-3">
-                                    <!-- تم استبدال الإيموجي بالشعار -->
                                     <img src="${stage.img}" class="w-16 h-16 rounded-full border-4 border-white/30 shadow-sm object-cover bg-white" onerror="this.src='https://via.placeholder.com/64'">
                                     ${stage.name}
                                 </h1>
@@ -615,9 +600,7 @@
                             <button onclick="setView('units')" class="bg-white/20 hover:bg-white/30 p-2 rounded-full transition backdrop-blur-sm relative z-10"><i data-lucide="chevron-left" class="w-6 h-6"></i></button>
                         </div>
                     </div>
-
                     ${backupSection}
-
                     <div class="flex overflow-x-auto bg-white shadow border-b border-gray-200">
                         ${tabsHtml}
                     </div>
@@ -651,6 +634,5 @@
             loadData();
         };
     </script>
-    
 </body>
 </html>
