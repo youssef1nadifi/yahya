@@ -548,19 +548,20 @@
                 const rows = (data.members || []).map((m, idx) => `
                     <tr class="border-b border-gray-50 hover:bg-gray-50">
                         <td class="p-3 font-medium">${m.name}</td>
+                        <td class="p-3 text-gray-600">${m.age ? m.age + ' سنة' : '-'}</td>
                         <td class="p-3 text-gray-500">#${idx + 1}</td>
                         <td class="p-3 text-emerald-600 font-bold">${m.fee} درهم</td>
                         ${canEdit ? `<td class="p-3 text-center"><button onclick="deleteItem('members', ${m.id})" class="text-red-500 hover:bg-red-50 p-2 rounded"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>` : ''}
                     </tr>`).join('');
                 
                 contentHtml = canEdit ? `
-                    <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('members', {name: fd.get('name'), fee: fd.get('fee')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
-                        <input name="name" required placeholder="اسم المنخرط" class="p-2 border rounded">
+                    <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('members', {name: fd.get('name'), age: fd.get('age'), fee: fd.get('fee')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-5 items-end">
+                        <input name="name" required placeholder="الإسم الكامل" class="p-2 border rounded md:col-span-2">
+                        <input name="age" required type="number" placeholder="السن" class="p-2 border rounded">
                         <input name="fee" required type="number" placeholder="ثمن الانخراط" class="p-2 border rounded">
-                        <div class="hidden md:block"></div>
                         <button type="submit" class="bg-emerald-600 text-white p-2 rounded hover:bg-emerald-700 flex items-center justify-center gap-1 font-bold"><i data-lucide="plus" class="w-4 h-4"></i> إضافة</button>
                     </form>` : '';
-                contentHtml += rows ? renderTable(['الاسم', 'رقم الانخراط', 'ثمن الانخراط'], rows) : '<p class="text-center p-8 text-gray-400">لا يوجد بيانات</p>';
+                contentHtml += rows ? renderTable(['الإسم الكامل', 'السن', 'رقم الانخراط', 'ثمن الانخراط'], rows) : '<p class="text-center p-8 text-gray-400">لا يوجد بيانات</p>';
             
             } else if (state.activeTab === 'attendance') {
                 const rows = (data.attendance || []).map(a => `
