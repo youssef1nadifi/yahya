@@ -12,6 +12,8 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Supabase CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- html2pdf.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         body { font-family: 'Tajawal', sans-serif; }
         .animate-fadeIn { animation: fadeIn 0.4s ease-out; }
@@ -26,6 +28,9 @@
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #10b981; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #047857; }
+        
+        /* كلاسات خاصة بالطباعة */
+        .print-hidden { display: none; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -49,10 +54,10 @@
 
         // --- البيانات الأولية ---
         const getInitialData = () => ({
-            cubs: { members: [], attendance: [], projects: [], program: [] },
-            scouts: { members: [], attendance: [], projects: [], program: [] },
-            advanced: { members: [], attendance: [], projects: [], program: [] },
-            rovers: { members: [], attendance: [], projects: [], program: [] }
+            cubs: { members: [], infoCards: [], attendance: [], projects: [], program: [] },
+            scouts: { members: [], infoCards: [], attendance: [], projects: [], program: [] },
+            advanced: { members: [], infoCards: [], attendance: [], projects: [], program: [] },
+            rovers: { members: [], infoCards: [], attendance: [], projects: [], program: [] }
         });
 
         const PASSWORDS = {
@@ -143,11 +148,8 @@
                     if (!error && data && data.payload) {
                         state.db = data.payload;
                         loadedFromCloud = true;
-                        console.log("Loaded from Supabase successfully");
                     }
-                } catch (e) {
-                    console.error("Supabase load error:", e);
-                }
+                } catch (e) { console.error(e); }
             }
 
             if (!loadedFromCloud) {
@@ -155,11 +157,13 @@
                     const savedData = localStorage.getItem('scoutsData_v3');
                     if (savedData) {
                         state.db = JSON.parse(savedData);
+                        for(let key in state.db) {
+                            if(!state.db[key].infoCards) state.db[key].infoCards = [];
+                        }
                     } else {
                         state.db = getInitialData();
                     }
                 } catch (e) {
-                    console.error("Error loading local data", e);
                     state.db = getInitialData();
                 }
             }
@@ -175,18 +179,14 @@
                     const { error } = await supabaseClient
                         .from('scouts_data')
                         .upsert({ id: 1, payload: state.db });
-                    
-                    if (error) console.error('Supabase Save Error:', error);
-                    else cloudSuccess = true;
+                    if (!error) cloudSuccess = true;
                 }
 
                 if (!silent) {
-                    if (cloudSuccess) showToast('تم الحفظ سحابياً ومحلياً بنجاح');
-                    else if (!supabaseClient) showToast('تم الحفظ محلياً (لا يوجد اتصال سحابي)');
-                    else showToast('تم الحفظ محلياً (فشل السحابي)', 'error');
+                    if (cloudSuccess) showToast('تم الحفظ سحابياً ومحلياً');
+                    else showToast('تم الحفظ محلياً');
                 }
             } catch (e) {
-                console.error("Save failed", e);
                 showToast('تنبيه: ذاكرة المتصفح ممتلئة!', 'error');
             }
         }
@@ -197,12 +197,11 @@
             const downloadAnchorNode = document.createElement('a');
             downloadAnchorNode.setAttribute("href", dataStr);
             const date = new Date();
-            const fileName = `نسخة_كشافة_${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}.json`;
-            downloadAnchorNode.setAttribute("download", fileName);
+            downloadAnchorNode.setAttribute("download", `نسخة_كشافة_${date.getFullYear()}.json`);
             document.body.appendChild(downloadAnchorNode);
             downloadAnchorNode.click();
             downloadAnchorNode.remove();
-            showToast('تم تحميل ملف النسخة الاحتياطية');
+            showToast('تم تحميل النسخة الاحتياطية');
         }
 
         function triggerImport() { document.getElementById('import-input').click(); }
@@ -215,11 +214,14 @@
                 try {
                     const json = JSON.parse(e.target.result);
                     if (json.cubs && json.scouts) {
-                        if(confirm('سيتم استبدال البيانات الحالية بالبيانات الموجودة في الملف. هل أنت متأكد؟')) {
+                        if(confirm('سيتم استبدال البيانات الحالية. هل أنت متأكد؟')) {
                             state.db = json;
+                            for(let key in state.db) {
+                                if(!state.db[key].infoCards) state.db[key].infoCards = [];
+                            }
                             saveData(true);
                             render();
-                            showToast('تمت استعادة البيانات بنجاح');
+                            showToast('تمت استعادة البيانات');
                         }
                     } else alert("ملف غير صالح.");
                 } catch(err) { alert("ملف تالف."); }
@@ -228,9 +230,112 @@
             input.value = '';
         }
 
+        // --- PDF Generation ---
+        function exportToPDF() {
+            const data = state.db[state.selectedStage];
+            const stageInfo = STAGES[state.selectedStage];
+            
+            if (!data.infoCards || data.infoCards.length === 0) {
+                showToast('لا توجد بطاقات للطباعة', 'error');
+                return;
+            }
+
+            // إنشاء حاوية مؤقتة لتصميم الطباعة
+            const printContainer = document.createElement('div');
+            printContainer.id = 'print-container-temp';
+            // تنسيق الحاوية لتكون شبكة بحجم A4 تقريباً
+            printContainer.style.width = '210mm'; 
+            printContainer.style.padding = '10mm';
+            printContainer.style.backgroundColor = 'white';
+            printContainer.style.display = 'grid';
+            printContainer.style.gridTemplateColumns = '1fr 1fr'; // بطاقتين في الصف
+            printContainer.style.gap = '15px';
+            printContainer.style.direction = 'rtl';
+            
+            // تحويل الألوان من Tailwind إلى CSS عادي للتأكد من ظهورها في PDF
+            const borderColor = stageInfo.id === 'cubs' ? '#eab308' : 
+                               stageInfo.id === 'scouts' ? '#16a34a' : 
+                               stageInfo.id === 'advanced' ? '#b91c1c' : '#1e40af';
+
+            // إنشاء HTML للبطاقات
+            const cardsHTML = data.infoCards.map(c => `
+                <div style="border: 2px solid ${borderColor}; border-radius: 12px; height: 55mm; overflow: hidden; position: relative; font-family: 'Tajawal', sans-serif; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); page-break-inside: avoid;">
+                    <!-- Header -->
+                    <div style="background-color: ${borderColor}; color: white; padding: 5px 10px; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: bold; font-size: 12px;">الكشفية الحسنية المغربية</span>
+                        <span style="font-size: 10px;">${stageInfo.name}</span>
+                    </div>
+                    
+                    <!-- Content -->
+                    <div style="padding: 10px; display: flex; justify-content: space-between;">
+                        <div style="flex: 1; text-align: right;">
+                            <div style="margin-bottom: 6px;">
+                                <div style="font-size: 9px; color: #6b7280;">الاسم الكامل:</div>
+                                <div style="font-weight: bold; font-size: 13px; color: #111827;">${c.memberName}</div>
+                            </div>
+                            <div style="margin-bottom: 6px;">
+                                <div style="font-size: 9px; color: #6b7280;">رقم البطاقة الوطنية:</div>
+                                <div style="font-weight: bold; font-size: 11px; color: #374151;">${c.cin || '---'}</div>
+                            </div>
+                            <div style="display: flex; gap: 10px;">
+                                <div>
+                                    <div style="font-size: 9px; color: #6b7280;">السن:</div>
+                                    <div style="font-weight: bold; font-size: 11px;">${c.age} سنة</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 9px; color: #6b7280;">رقم الهاتف:</div>
+                                    <div style="font-weight: bold; font-size: 11px;" dir="ltr">${c.phone}</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Photo Placeholder -->
+                        <div style="width: 25mm; height: 32mm; border: 1px dashed #d1d5db; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-right: 10px; background-color: #f9fafb;">
+                            <span style="font-size: 20px; color: #9ca3af;">📷</span>
+                            <span style="font-size: 8px; color: #9ca3af; margin-top: 2px;">الصورة</span>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div style="position: absolute; bottom: 5px; left: 10px; right: 10px; border-top: 1px solid #e5e7eb; padding-top: 4px; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 8px; color: #6b7280;">فرع مراكش المنارة</span>
+                        <span style="font-size: 8px; color: #6b7280;">توقيع القائد: .................</span>
+                    </div>
+                </div>
+            `).join('');
+
+            printContainer.innerHTML = cardsHTML;
+            
+            // إضافة الحاوية للصفحة (مخفية) لكي يتمكن html2pdf من رؤيتها
+            document.body.appendChild(printContainer);
+
+            const opt = {
+                margin: 5,
+                filename: `بطاقات_${stageInfo.name}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            const btn = document.getElementById('pdf-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = 'جاري المعالجة...';
+            btn.disabled = true;
+
+            html2pdf().set(opt).from(printContainer).save().then(() => {
+                document.body.removeChild(printContainer); // حذف الحاوية بعد الانتهاء
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                showToast('تم تحميل ملف البطاقات بنجاح');
+            });
+        }
+
         // --- CRUD ---
         function addItem(section, item) {
             const newItem = { ...item, id: Date.now(), createdAt: new Date().toLocaleDateString('ar-MA') };
+            if (!state.db[state.selectedStage][section]) {
+                state.db[state.selectedStage][section] = [];
+            }
             state.db[state.selectedStage][section].push(newItem);
             saveData(false);
             render();
@@ -303,31 +408,26 @@
         function HomeScreen() {
             return `
                 <div class="relative flex flex-col items-center justify-center min-h-[85vh] p-4 animate-fadeIn overflow-hidden">
-                    <!-- خلفية الشاشة الرئيسية - صورة -->
                     <div class="absolute inset-0 z-0 bg-emerald-100">
                         <img src="https://i.pinimg.com/1200x/64/a5/94/64a594dff8b10396e8df4d5c0091c408.jpg" class="w-full h-full object-cover opacity-30" alt="خلفية كشفية">
-                        <!-- طبقة إضافية لتحسين القراءة -->
                         <div class="absolute inset-0 bg-gradient-to-b from-white/10 to-emerald-900/30 pointer-events-none"></div>
                     </div>
 
                     <div class="relative z-10 flex flex-col items-center w-full">
                         <div class="flex items-center justify-center gap-4 md:gap-10 mb-12"> 
-                            <!-- الدائرة اليمنى - تم تصحيح rounded-full -->
                             <div class="flex flex-col items-center animate-bounce-slow">
                                 <div class="w-24 h-24 md:w-32 md:h-32 bg-emerald-700 rounded-lg flex items-center justify-center shadow-xl border-4 border-green-700 overflow-hidden transform hover:scale-105 transition">
                                     <img src="https://i.pinimg.com/736x/66/18/be/6618be9986f6409c2de5efb034453dd4.jpg" class="w-full h-full object-cover opacity-100">
                                 </div>
                             </div>
                             
-                            <!-- الشعار الأوسط -->
                             <div class="flex flex-col items-center relative z-40 -mt-8 md:-mt-12"> 
                                 <div class="w-35 h-35 md:w-56 md:h-56 flex items-center justify-center transform hover:scale-110 transition duration-500 filter drop-shadow-2xl border-4 border-green-700 rounded-lg overflow-hidden">
                                     <img src="https://i.pinimg.com/736x/b6/23/7f/b6237f449b7666f92c96fd59a994982c.jpg" class="w-full h-full object-cover">
                                 </div>
                             </div>
 
-                            <!-- الدائرة اليسرى - تم تصحيح rounded-full -->
-                           <div class="flex flex-col items-center animate-bounce-slow">
+                            <div class="flex flex-col items-center animate-bounce-slow">
                                 <div class="w-24 h-24 md:w-32 md:h-32 bg-emerald-700 rounded-lg flex items-center justify-center shadow-xl border-4 border-green-700 overflow-hidden transform hover:scale-105 transition">
                                     <img src="https://i.pinimg.com/736x/58/56/b6/5856b6659cffb1319a107d48fca3dc21.jpg" class="w-full h-full object-cover opacity-100">
                                 </div>
@@ -488,6 +588,7 @@
 
             const tabs = [
                 { id: 'members', label: 'المنخرطون', icon: 'users' },
+                { id: 'infoCards', label: 'بطاقة معلومات الفرد', icon: 'contact' },
                 { id: 'attendance', label: 'لائحة الحضور', icon: 'check-square' },
                 { id: 'projects', label: 'المشاريع', icon: 'compass' },
                 { id: 'program', label: 'البرنامج', icon: 'calendar' }
@@ -529,6 +630,58 @@
                     </form>` : '';
                 contentHtml += rows ? renderTable(['الإسم الكامل', 'السن', 'رقم الانخراط', 'ثمن الانخراط'], rows) : '<p class="text-center p-8 text-gray-400">لا يوجد بيانات</p>';
             
+            } else if (state.activeTab === 'infoCards') {
+                const cards = (data.infoCards || []).map(c => `
+                    <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition relative group">
+                        <div class="flex items-center gap-3 mb-3 border-b border-gray-100 pb-2">
+                            <div class="bg-emerald-100 p-2 rounded-full text-emerald-700"><i data-lucide="user" class="w-5 h-5"></i></div>
+                            <h3 class="font-bold text-lg text-gray-800">${c.memberName}</h3>
+                        </div>
+                        <div class="space-y-2 text-sm text-gray-600">
+                            <p class="flex justify-between items-center"><span>السن:</span> <span class="font-bold text-gray-800">${c.age} سنة</span></p>
+                            <p class="flex justify-between items-center"><span>ولي الأمر:</span> <span class="font-bold text-gray-800">${c.parentName}</span></p>
+                            <p class="flex justify-between items-center"><span>رقم الهاتف:</span> <span class="font-bold text-gray-800" dir="ltr">${c.phone}</span></p>
+                            <p class="flex justify-between items-center"><span>رقم البطاقة (CIN):</span> <span class="font-bold text-gray-800 uppercase">${c.cin}</span></p>
+                        </div>
+                        ${canEdit ? `<button onclick="deleteItem('infoCards', ${c.id})" class="absolute top-3 left-3 text-red-400 hover:text-red-600 transition opacity-0 group-hover:opacity-100"><i data-lucide="trash-2" class="w-5 h-5"></i></button>` : ''}
+                    </div>
+                `).join('');
+
+                const pdfBtn = (data.infoCards && data.infoCards.length > 0) ? `
+                    <div class="mb-4 flex justify-end">
+                        <button id="pdf-btn" onclick="exportToPDF()" class="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-lg font-bold flex items-center gap-2 shadow-md transition transform hover:-translate-y-0.5">
+                            <i data-lucide="printer" class="w-5 h-5"></i> طباعة البطاقات (PDF)
+                        </button>
+                    </div>
+                ` : '';
+
+                contentHtml = pdfBtn;
+
+                if (canEdit) {
+                    contentHtml += `
+                    <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('infoCards', {
+                        memberName: fd.get('memberName'),
+                        parentName: fd.get('parentName'),
+                        cin: fd.get('cin'),
+                        age: fd.get('age'),
+                        phone: fd.get('phone')
+                    }); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm">
+                        <h4 class="font-bold text-gray-700 mb-4 border-b pb-2">إضافة بطاقة معلومات جديدة</h4>
+                        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 items-end">
+                            <input name="memberName" required placeholder="إسم المنخرط" class="p-2 border rounded w-full">
+                            <input name="age" type="number" required placeholder="السن" class="p-2 border rounded w-full">
+                            <input name="parentName" required placeholder="إسم ولي الأمر" class="p-2 border rounded w-full">
+                            <input name="cin" placeholder="رقم البطاقة الوطنية (CIN)" class="p-2 border rounded w-full uppercase">
+                            <input name="phone" required placeholder="رقم الهاتف" class="p-2 border rounded w-full">
+                            <button type="submit" class="bg-emerald-600 text-white p-2 rounded hover:bg-emerald-700 flex items-center justify-center gap-1 font-bold w-full"><i data-lucide="plus" class="w-4 h-4"></i> إضافة البطاقة</button>
+                        </div>
+                    </form>
+                    `;
+                }
+                
+                contentHtml += `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">${cards}</div>`;
+                if (!cards && !canEdit) contentHtml += '<p class="text-center p-8 text-gray-400">لا توجد بطاقات معلومات</p>';
+
             } else if (state.activeTab === 'attendance') {
                 const rows = (data.attendance || []).map(a => `
                      <tr class="border-b border-gray-50 hover:bg-gray-50">
