@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>الكشفية الحسنية المغربية</title>
+    <title>الكشفية الحسنية المغربية - النظام الرقمي</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts -->
@@ -157,8 +157,13 @@
                     const savedData = localStorage.getItem('scoutsData_v3');
                     if (savedData) {
                         state.db = JSON.parse(savedData);
+                        // Fix structure if upgrading from old version
                         for(let key in state.db) {
                             if(!state.db[key].infoCards) state.db[key].infoCards = [];
+                            if(!state.db[key].members) state.db[key].members = [];
+                            if(!state.db[key].attendance) state.db[key].attendance = [];
+                            if(!state.db[key].projects) state.db[key].projects = [];
+                            if(!state.db[key].program) state.db[key].program = [];
                         }
                     } else {
                         state.db = getInitialData();
@@ -216,9 +221,6 @@
                     if (json.cubs && json.scouts) {
                         if(confirm('سيتم استبدال البيانات الحالية. هل أنت متأكد؟')) {
                             state.db = json;
-                            for(let key in state.db) {
-                                if(!state.db[key].infoCards) state.db[key].infoCards = [];
-                            }
                             saveData(true);
                             render();
                             showToast('تمت استعادة البيانات');
@@ -230,103 +232,220 @@
             input.value = '';
         }
 
-        // --- PDF Generation ---
-        function exportToPDF() {
-            const data = state.db[state.selectedStage];
+        // --- PDF Generation System (Unified) ---
+        function generatePDF(section) {
+            const dataList = state.db[state.selectedStage][section];
             const stageInfo = STAGES[state.selectedStage];
-            
-            if (!data.infoCards || data.infoCards.length === 0) {
-                showToast('لا توجد بطاقات للطباعة', 'error');
+
+            if (!dataList || dataList.length === 0) {
+                showToast('لا توجد بيانات للطباعة', 'error');
                 return;
             }
 
-            // إنشاء حاوية مؤقتة لتصميم الطباعة
+            const titles = {
+                members: 'لائحة المنخرطين',
+                infoCards: 'بطاقات المعلومات',
+                attendance: 'سجل الحضور',
+                projects: 'المشاريع',
+                program: 'البرنامج السنوي'
+            };
+
+            const btnId = `btn-pdf-${section}`;
+            const btn = document.getElementById(btnId);
+            let originalText = '';
+            if(btn) {
+                originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="animate-spin" data-lucide="loader-2"></i> جاري المعالجة...';
+                btn.disabled = true;
+                lucide.createIcons();
+            }
+
+            // Create temporary container
             const printContainer = document.createElement('div');
-            printContainer.id = 'print-container-temp';
-            // تنسيق الحاوية لتكون شبكة بحجم A4 تقريباً
-            printContainer.style.width = '210mm'; 
-            printContainer.style.padding = '10mm';
-            printContainer.style.backgroundColor = 'white';
-            printContainer.style.display = 'grid';
-            printContainer.style.gridTemplateColumns = '1fr 1fr'; // بطاقتين في الصف
-            printContainer.style.gap = '15px';
-            printContainer.style.direction = 'rtl';
             
-            // تحويل الألوان من Tailwind إلى CSS عادي للتأكد من ظهورها في PDF
-            const borderColor = stageInfo.id === 'cubs' ? '#eab308' : 
-                               stageInfo.id === 'scouts' ? '#16a34a' : 
-                               stageInfo.id === 'advanced' ? '#b91c1c' : '#1e40af';
+            // Logic Split: InfoCards (Visual) vs Others (Tables/Lists)
+            if (section === 'infoCards') {
+                // Info Cards Specific Layout
+                printContainer.style.width = '210mm'; 
+                printContainer.style.padding = '10mm';
+                printContainer.style.backgroundColor = 'white';
+                printContainer.style.display = 'grid';
+                printContainer.style.gridTemplateColumns = '1fr 1fr';
+                printContainer.style.gap = '15px';
+                printContainer.style.direction = 'rtl';
+                
+                const borderColor = stageInfo.id === 'cubs' ? '#eab308' : 
+                                   stageInfo.id === 'scouts' ? '#16a34a' : 
+                                   stageInfo.id === 'advanced' ? '#b91c1c' : '#1e40af';
 
-            // إنشاء HTML للبطاقات
-            const cardsHTML = data.infoCards.map(c => `
-                <div style="border: 2px solid ${borderColor}; border-radius: 12px; height: 55mm; overflow: hidden; position: relative; font-family: 'Tajawal', sans-serif; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); page-break-inside: avoid;">
-                    <!-- Header -->
-                    <div style="background-color: ${borderColor}; color: white; padding: 5px 10px; display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-weight: bold; font-size: 12px;">الكشفية الحسنية المغربية</span>
-                        <span style="font-size: 10px;">${stageInfo.name}</span>
-                    </div>
-                    
-                    <!-- Content -->
-                    <div style="padding: 10px; display: flex; justify-content: space-between;">
-                        <div style="flex: 1; text-align: right;">
-                            <div style="margin-bottom: 6px;">
-                                <div style="font-size: 9px; color: #6b7280;">الاسم الكامل:</div>
-                                <div style="font-weight: bold; font-size: 13px; color: #111827;">${c.memberName}</div>
-                            </div>
-                            <div style="margin-bottom: 6px;">
-                                <div style="font-size: 9px; color: #6b7280;">رقم البطاقة الوطنية:</div>
-                                <div style="font-weight: bold; font-size: 11px; color: #374151;">${c.cin || '---'}</div>
-                            </div>
-                            <div style="display: flex; gap: 10px;">
-                                <div>
-                                    <div style="font-size: 9px; color: #6b7280;">السن:</div>
-                                    <div style="font-weight: bold; font-size: 11px;">${c.age} سنة</div>
+                printContainer.innerHTML = dataList.map(c => `
+                    <div style="border: 2px solid ${borderColor}; border-radius: 12px; height: 55mm; overflow: hidden; position: relative; font-family: 'Tajawal', sans-serif; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); page-break-inside: avoid;">
+                        <div style="background-color: ${borderColor}; color: white; padding: 5px 10px; display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: bold; font-size: 12px;">الكشفية الحسنية المغربية</span>
+                            <span style="font-size: 10px;">${stageInfo.name}</span>
+                        </div>
+                        <div style="padding: 10px; display: flex; justify-content: space-between;">
+                            <div style="flex: 1; text-align: right;">
+                                <div style="margin-bottom: 6px;">
+                                    <div style="font-size: 9px; color: #6b7280;">الاسم الكامل:</div>
+                                    <div style="font-weight: bold; font-size: 13px; color: #111827;">${c.memberName}</div>
                                 </div>
-                                <div>
-                                    <div style="font-size: 9px; color: #6b7280;">رقم الهاتف:</div>
-                                    <div style="font-weight: bold; font-size: 11px;" dir="ltr">${c.phone}</div>
+                                <div style="margin-bottom: 6px;">
+                                    <div style="font-size: 9px; color: #6b7280;">رقم البطاقة الوطنية:</div>
+                                    <div style="font-weight: bold; font-size: 11px; color: #374151;">${c.cin || '---'}</div>
+                                </div>
+                                <div style="display: flex; gap: 10px;">
+                                    <div><div style="font-size: 9px; color: #6b7280;">السن:</div><div style="font-weight: bold; font-size: 11px;">${c.age} سنة</div></div>
+                                    <div><div style="font-size: 9px; color: #6b7280;">الهاتف:</div><div style="font-weight: bold; font-size: 11px;" dir="ltr">${c.phone}</div></div>
                                 </div>
                             </div>
+                            <div style="width: 25mm; height: 32mm; border: 1px dashed #d1d5db; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-right: 10px; background-color: #f9fafb;">
+                                <span style="font-size: 20px;">📷</span>
+                            </div>
                         </div>
-                        
-                        <!-- Photo Placeholder -->
-                        <div style="width: 25mm; height: 32mm; border: 1px dashed #d1d5db; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-right: 10px; background-color: #f9fafb;">
-                            <span style="font-size: 20px; color: #9ca3af;">📷</span>
-                            <span style="font-size: 8px; color: #9ca3af; margin-top: 2px;">الصورة</span>
+                        <div style="position: absolute; bottom: 5px; left: 10px; right: 10px; border-top: 1px solid #e5e7eb; padding-top: 4px; display: flex; justify-content: space-between;">
+                            <span style="font-size: 8px; color: #6b7280;">فرع مراكش المنارة</span>
+                            <span style="font-size: 8px; color: #6b7280;">التوقيع: ............</span>
                         </div>
                     </div>
+                `).join('');
 
-                    <!-- Footer -->
-                    <div style="position: absolute; bottom: 5px; left: 10px; right: 10px; border-top: 1px solid #e5e7eb; padding-top: 4px; display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-size: 8px; color: #6b7280;">فرع مراكش المنارة</span>
-                        <span style="font-size: 8px; color: #6b7280;">توقيع القائد: .................</span>
+            } else {
+                // Standard A4 Document Layout (Tables/Lists)
+                printContainer.style.width = '210mm';
+                printContainer.style.padding = '20mm';
+                printContainer.style.fontFamily = "'Tajawal', sans-serif";
+                printContainer.style.direction = 'rtl';
+                printContainer.style.backgroundColor = 'white';
+
+                // Generic Header
+                let htmlContent = `
+                    <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #059669; padding-bottom: 20px;">
+                        <h2 style="font-size: 24px; font-weight: 800; color: #064e3b; margin-bottom: 5px;">الكشفية الحسنية المغربية</h2>
+                        <h3 style="font-size: 16px; color: #059669; margin-bottom: 15px;">فرع مراكش المنارة</h3>
+                        <div style="display: flex; justify-content: space-between; align-items: center; background-color: #f0fdf4; padding: 10px; border-radius: 8px; border: 1px solid #dcfce7;">
+                            <div style="text-align: right;">
+                                <div style="font-size: 12px; color: #166534;">المرحلة</div>
+                                <div style="font-weight: bold; color: #064e3b;">${stageInfo.name}</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 12px; color: #166534;">نوع الوثيقة</div>
+                                <div style="font-weight: bold; color: #064e3b;">${titles[section]}</div>
+                            </div>
+                            <div style="text-align: left;">
+                                <div style="font-size: 12px; color: #166534;">تاريخ الاستخراج</div>
+                                <div style="font-weight: bold; color: #064e3b;">${new Date().toLocaleDateString('ar-MA')}</div>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            `).join('');
+                `;
 
-            printContainer.innerHTML = cardsHTML;
-            
-            // إضافة الحاوية للصفحة (مخفية) لكي يتمكن html2pdf من رؤيتها
+                // Content Tables/Lists
+                if (section === 'members') {
+                    htmlContent += `
+                        <table style="width: 100%; border-collapse: collapse; text-align: right; font-size: 14px;">
+                            <thead style="background-color: #059669; color: white;">
+                                <tr>
+                                    <th style="padding: 10px; border: 1px solid #047857;">ر.ت</th>
+                                    <th style="padding: 10px; border: 1px solid #047857;">الاسم الكامل</th>
+                                    <th style="padding: 10px; border: 1px solid #047857;">السن</th>
+                                    <th style="padding: 10px; border: 1px solid #047857;">واجب الانخراط</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${dataList.map((m, i) => `
+                                    <tr style="background-color: ${i % 2 === 0 ? '#fff' : '#f9fafb'};">
+                                        <td style="padding: 8px; border: 1px solid #e5e7eb; width: 50px;">${i + 1}</td>
+                                        <td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: bold;">${m.name}</td>
+                                        <td style="padding: 8px; border: 1px solid #e5e7eb;">${m.age} سنة</td>
+                                        <td style="padding: 8px; border: 1px solid #e5e7eb;">${m.fee} درهم</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else if (section === 'attendance') {
+                     htmlContent += `
+                        <table style="width: 100%; border-collapse: collapse; text-align: right; font-size: 14px;">
+                            <thead style="background-color: #059669; color: white;">
+                                <tr>
+                                    <th style="padding: 10px; border: 1px solid #047857;">الاسم الكامل</th>
+                                    <th style="padding: 10px; border: 1px solid #047857;">الحالة</th>
+                                    <th style="padding: 10px; border: 1px solid #047857;">التاريخ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${dataList.map((a, i) => `
+                                    <tr style="background-color: ${i % 2 === 0 ? '#fff' : '#f9fafb'};">
+                                        <td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: bold;">${a.name}</td>
+                                        <td style="padding: 8px; border: 1px solid #e5e7eb;">
+                                            <span style="padding: 2px 8px; border-radius: 4px; background-color: ${a.status === 'حاضر' ? '#dcfce7' : '#fee2e2'}; color: ${a.status === 'حاضر' ? '#166534' : '#991b1b'}; font-size: 12px;">${a.status}</span>
+                                        </td>
+                                        <td style="padding: 8px; border: 1px solid #e5e7eb; color: #6b7280;">${a.date || a.createdAt || '-'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else if (section === 'projects') {
+                    htmlContent += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">`;
+                    dataList.forEach(p => {
+                        htmlContent += `
+                            <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background-color: #fafafa; break-inside: avoid;">
+                                <h4 style="margin: 0 0 8px 0; color: #065f46; font-size: 16px; font-weight: bold; border-bottom: 1px dashed #d1d5db; padding-bottom: 5px;">${p.name}</h4>
+                                <p style="margin: 0; color: #4b5563; font-size: 14px; line-height: 1.5;">${p.desc}</p>
+                            </div>
+                        `;
+                    });
+                    htmlContent += `</div>`;
+                } else if (section === 'program') {
+                     htmlContent += `
+                        <table style="width: 100%; border-collapse: collapse; text-align: right; font-size: 14px;">
+                            <thead style="background-color: #059669; color: white;">
+                                <tr>
+                                    <th style="padding: 10px; border: 1px solid #047857; width: 20%;">التاريخ</th>
+                                    <th style="padding: 10px; border: 1px solid #047857; width: 40%;">النشاط</th>
+                                    <th style="padding: 10px; border: 1px solid #047857; width: 40%;">ملاحظات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${dataList.map((p, i) => `
+                                    <tr style="background-color: ${i % 2 === 0 ? '#fff' : '#f9fafb'};">
+                                        <td style="padding: 8px; border: 1px solid #e5e7eb; color: #065f46; font-weight: bold;">${p.date}</td>
+                                        <td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: bold;">${p.activity}</td>
+                                        <td style="padding: 8px; border: 1px solid #e5e7eb; color: #6b7280;">${p.notes || '-'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                }
+
+                htmlContent += `
+                    <div style="margin-top: 40px; text-align: left; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 10px;">
+                         تم استخراج هذه الوثيقة آلياً من النظام الرقمي للكشفية الحسنية المغربية
+                    </div>
+                `;
+                printContainer.innerHTML = htmlContent;
+            }
+
             document.body.appendChild(printContainer);
 
             const opt = {
                 margin: 5,
-                filename: `بطاقات_${stageInfo.name}.pdf`,
+                filename: `${titles[section]}_${stageInfo.name}.pdf`,
                 image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { scale: 2, useCORS: true },
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
 
-            const btn = document.getElementById('pdf-btn');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = 'جاري المعالجة...';
-            btn.disabled = true;
-
             html2pdf().set(opt).from(printContainer).save().then(() => {
-                document.body.removeChild(printContainer); // حذف الحاوية بعد الانتهاء
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-                showToast('تم تحميل ملف البطاقات بنجاح');
+                document.body.removeChild(printContainer);
+                if(btn) {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+                showToast('تم تحميل ملف PDF بنجاح');
             });
         }
 
@@ -602,6 +721,15 @@
                 </button>
             `).join('');
 
+            // Helper to generate print button for any section
+            const getPrintBtn = (section) => (data[section] && data[section].length > 0) ? `
+                <div class="mb-4 flex justify-end">
+                    <button id="btn-pdf-${section}" onclick="generatePDF('${section}')" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm text-sm transition transform hover:-translate-y-0.5">
+                        <i data-lucide="printer" class="w-4 h-4"></i> طباعة القائمة (PDF)
+                    </button>
+                </div>
+            ` : '';
+
             let contentHtml = '';
             const renderTable = (headers, rows) => `
                 <div class="overflow-x-auto">
@@ -621,13 +749,17 @@
                         ${canEdit ? `<td class="p-3 text-center"><button onclick="deleteItem('members', ${m.id})" class="text-red-500 hover:bg-red-50 p-2 rounded"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>` : ''}
                     </tr>`).join('');
                 
-                contentHtml = canEdit ? `
+                contentHtml = getPrintBtn('members');
+                
+                if (canEdit) {
+                    contentHtml += `
                     <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('members', {name: fd.get('name'), age: fd.get('age'), fee: fd.get('fee')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-5 items-end">
                         <input name="name" required placeholder="الإسم الكامل" class="p-2 border rounded md:col-span-2">
                         <input name="age" required type="number" placeholder="السن" class="p-2 border rounded">
                         <input name="fee" required type="number" placeholder="ثمن الانخراط" class="p-2 border rounded">
                         <button type="submit" class="bg-emerald-600 text-white p-2 rounded hover:bg-emerald-700 flex items-center justify-center gap-1 font-bold"><i data-lucide="plus" class="w-4 h-4"></i> إضافة</button>
-                    </form>` : '';
+                    </form>`;
+                }
                 contentHtml += rows ? renderTable(['الإسم الكامل', 'السن', 'رقم الانخراط', 'ثمن الانخراط'], rows) : '<p class="text-center p-8 text-gray-400">لا يوجد بيانات</p>';
             
             } else if (state.activeTab === 'infoCards') {
@@ -649,7 +781,7 @@
 
                 const pdfBtn = (data.infoCards && data.infoCards.length > 0) ? `
                     <div class="mb-4 flex justify-end">
-                        <button id="pdf-btn" onclick="exportToPDF()" class="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-lg font-bold flex items-center gap-2 shadow-md transition transform hover:-translate-y-0.5">
+                        <button id="btn-pdf-infoCards" onclick="generatePDF('infoCards')" class="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-lg font-bold flex items-center gap-2 shadow-md transition transform hover:-translate-y-0.5">
                             <i data-lucide="printer" class="w-5 h-5"></i> طباعة البطاقات (PDF)
                         </button>
                     </div>
@@ -687,16 +819,22 @@
                      <tr class="border-b border-gray-50 hover:bg-gray-50">
                         <td class="p-3 font-medium">${a.name}</td>
                         <td class="p-3"><span class="px-3 py-1 rounded-full text-sm ${a.status === 'حاضر' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${a.status}</span></td>
+                        <td class="p-3 text-gray-600 text-sm">${a.date || a.createdAt || '-'}</td>
                         ${canEdit ? `<td class="p-3 text-center"><button onclick="deleteItem('attendance', ${a.id})" class="text-red-500 hover:bg-red-50 p-2 rounded"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>` : ''}
                      </tr>`).join('');
                 
-                contentHtml = canEdit ? `
-                     <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('attendance', {name: fd.get('name'), status: fd.get('status')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
-                        <input name="name" required placeholder="الاسم الكامل" class="p-2 border rounded md:col-span-2">
+                contentHtml = getPrintBtn('attendance');
+
+                if (canEdit) {
+                    contentHtml += `
+                     <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('attendance', {name: fd.get('name'), status: fd.get('status'), date: fd.get('date')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
+                        <input name="name" required placeholder="الاسم الكامل" class="p-2 border rounded md:col-span-1">
                         <select name="status" class="p-2 border rounded"><option value="حاضر">حاضر</option><option value="غائب">غائب</option></select>
+                        <input name="date" type="date" required class="p-2 border rounded">
                         <button type="submit" class="bg-emerald-600 text-white p-2 rounded hover:bg-emerald-700 flex items-center justify-center gap-1 font-bold"><i data-lucide="plus" class="w-4 h-4"></i> إضافة</button>
-                    </form>` : '';
-                contentHtml += rows ? renderTable(['الاسم الكامل', 'الحالة'], rows) : '<p class="text-center p-8 text-gray-400">لا يوجد بيانات</p>';
+                    </form>`;
+                }
+                contentHtml += rows ? renderTable(['الاسم الكامل', 'الحالة', 'التاريخ'], rows) : '<p class="text-center p-8 text-gray-400">لا يوجد بيانات</p>';
 
             } else if (state.activeTab === 'projects') {
                 const cards = (data.projects || []).map(p => `
@@ -706,12 +844,16 @@
                         ${canEdit ? `<button onclick="deleteItem('projects', ${p.id})" class="absolute top-2 left-2 text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-600 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
                     </div>`).join('');
                 
-                contentHtml = canEdit ? `
+                contentHtml = getPrintBtn('projects');
+
+                if (canEdit) {
+                    contentHtml += `
                      <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('projects', {name: fd.get('name'), desc: fd.get('desc')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
                         <input name="name" required placeholder="اسم المشروع" class="p-2 border rounded md:col-span-1">
                         <input name="desc" required placeholder="الوصف / الحالة" class="p-2 border rounded md:col-span-2">
                         <button type="submit" class="bg-emerald-600 text-white p-2 rounded hover:bg-emerald-700 flex items-center justify-center gap-1 font-bold"><i data-lucide="plus" class="w-4 h-4"></i> إضافة</button>
-                    </form>` : '';
+                    </form>`;
+                }
                 contentHtml += `<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">${cards}</div>`;
 
             } else if (state.activeTab === 'program') {
@@ -728,13 +870,17 @@
                         </div>
                     </div>`).join('');
                 
-                contentHtml = canEdit ? `
+                contentHtml = getPrintBtn('program');
+
+                if (canEdit) {
+                    contentHtml += `
                      <form onsubmit="event.preventDefault(); const fd=new FormData(this); addItem('program', {activity: fd.get('activity'), date: fd.get('date'), notes: fd.get('notes')}); this.reset();" class="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 shadow-sm grid gap-3 md:grid-cols-4 items-end">
                         <input name="name" required placeholder="النشاط" class="p-2 border rounded">
                         <input name="date" required type="date" class="p-2 border rounded">
                         <input name="notes" placeholder="ملاحظات" class="p-2 border rounded">
                         <button type="submit" class="bg-emerald-600 text-white p-2 rounded hover:bg-emerald-700 flex items-center justify-center gap-1 font-bold"><i data-lucide="plus" class="w-4 h-4"></i> إضافة</button>
-                    </form>` : '';
+                    </form>`;
+                }
                 contentHtml += `<div class="space-y-3">${items}</div>`;
             }
 
@@ -789,5 +935,3 @@
     </script>
 </body>
 </html>
-
-
